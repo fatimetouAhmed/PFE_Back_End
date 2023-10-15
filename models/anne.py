@@ -48,6 +48,7 @@ class Annees(Base):
     id = Column(Integer, primary_key=True)
     annee_debut  = Column(DateTime)
     annee_fin  = Column(DateTime)
+    annedep = relationship("Annedep", back_populates="annee", uselist=False)
 
 
 
@@ -56,6 +57,17 @@ class Departement(Base):
     id = Column(Integer, primary_key=True)
     nom_departement  = Column(String(255))
     formation = relationship("Formation", back_populates="departement", uselist=False)
+    annedep = relationship("Annedep", back_populates="departement", uselist=False)
+
+class Annedep(Base):
+    __tablename__ = 'annedep'
+    id = Column(Integer, primary_key=True)
+    id_anne  = Column(Integer, ForeignKey("annees_universitaires.id"))
+    id_dep  = Column(Integer, ForeignKey("departements.id"))
+    departement = relationship("Departement", back_populates="annedep", uselist=False)
+    annee = relationship("Annees", back_populates="annedep", uselist=False)
+    
+
 
 class Formation(Base):
     __tablename__ = 'formation'
