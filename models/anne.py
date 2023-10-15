@@ -181,6 +181,8 @@ class Surveillance(Base):
     id = Column(Integer, primary_key=True)
     id_sal = Column(Integer, ForeignKey("salles.id"))
     id_surv = Column(Integer, ForeignKey("surveillants.user_id"))
+    date_debut  = Column(DateTime)
+    date_fin  = Column(DateTime)
     salle = relationship("Salle", back_populates="surveillance", uselist=False)
     surveillant=relationship("Surveillant", back_populates="surveillance", uselist=False)
 class Historiques(Base):
