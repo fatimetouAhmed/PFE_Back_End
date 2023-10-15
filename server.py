@@ -11,6 +11,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError,jwt
 from passlib.context import CryptContext
 import datetime
+from prediction import predict_face
 from auth.authConfig import PV,recupere_userid,create_user,read_data_users,read_data_users_by_id,Superviseur,Surveillant,Administrateur,UserResponse,UserCreate,get_db,authenticate_user,create_access_token,ACCESS_TOKEN_EXPIRE_MINUTES,check_Adminpermissions,check_superviseurpermissions,check_survpermissions,User
 #import redis
 from fastapi import FastAPI, File, UploadFile
@@ -250,7 +251,19 @@ async def ajouteretudiant(matricule: str= Form(...),nom: str= Form(...),
 
     nationalite: str = Form(...),
     date_inscription: datetime = Form(...),file: UploadFile = File(...),db: Session = Depends(get_db)):
-    result=addetudiant(matricule,nom,prenom,genre,date_N,lieu_n,email,tel,id_fil,nni,nationalite,date_inscription,file,db)
-    return result
+    result= await addetudiant(matricule,nom,prenom,genre,date_N,lieu_n,email,tel,id_fil,nni,nationalite,date_inscription,file,db)
+    return {"data": result}
+
+@app.post('/api/predict')
+async def predict_image(file: UploadFile = File(...), user_id: int = Depends(recupere_userid), user: User = Depends(check_survpermissions)):
+    try:
+        image = await file.read()
+        with open("image.jpg", "wb") as f:
+            f.write(image)
+            print("image.jpg")
+        result = await predict_face("image.jpg", user_id, user)
+        return result
+    except Exception as e:
+        return {"error": str(e)}
 if __name__ == "__main__":
     uvicorn.run(app, port=8000, host='127.0.0.1')
