@@ -118,7 +118,7 @@ class Etudiant(Base):
 
 
 class Matiere(Base):
-    __tablename__ = 'matiere'
+    __tablename__ = 'matieres'
 
     id = Column(Integer, primary_key=True)
     libelle = Column(String(250))
@@ -136,7 +136,7 @@ class Evaluation(Base):
     type = Column(String(250))
     date_debut  = Column(DateTime)
     date_fin  = Column(DateTime)
-    id_mat = Column(Integer, ForeignKey("matiere.id"))
+    id_mat = Column(Integer, ForeignKey("matieres.id"))
     id_sal = Column(Integer, ForeignKey("salles.id"))
     salle = relationship("Salle", back_populates="evaluation", uselist=False)
     matiere=relationship("Matiere", back_populates="evaluation", uselist=False)    

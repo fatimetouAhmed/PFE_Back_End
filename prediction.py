@@ -9,7 +9,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import create_engine, Column, Integer, String ,Sequence
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-#from dbconfig import get_etudiant ,get_infoexamun
+from dbconfig import get_etudiant 
 #from routes.historique import write_data
 from fastapi import APIRouter,Depends
 from auth.authConfig import recupere_userid,create_user,UserResponse,UserCreate,get_db,authenticate_user,create_access_token,ACCESS_TOKEN_EXPIRE_MINUTES,check_Adminpermissions,check_superviseurpermissions,check_survpermissions,User
@@ -47,9 +47,10 @@ async def predict_face(image_path,user_id: int = Depends(recupere_userid),user: 
                     # print(image_name)
                     print("url:", url)
                     print("id:",user_id)
-                    #id = get_etudiant(url)
+                    id = get_etudiant(url)
+                    print(id)
                     #donne = await get_infoexamun(image_path,image_name, id, user_id, user)
-                    return True
+                    return id
                 else:
                     raise Exception("Étudiant inexistant")
         except Exception as e:
