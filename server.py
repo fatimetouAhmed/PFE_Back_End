@@ -28,6 +28,7 @@ import os
 from routes.etudiants import addetudiant 
 from fastapi.middleware.cors import CORSMiddleware
 from config.db import con
+from routes.annee import annee_router
 app=FastAPI()
 Session = sessionmaker(bind=con)
 # Create a session
@@ -46,7 +47,8 @@ app.add_middleware(
 
 # Définir les routes pour l'ensemble d'itinéraires etudiant
 
-
+# Définir les routes pour l'ensemble d'itinéraires annee
+app.include_router(annee_router, prefix="/annees", tags=["Annes"])
 #--------------------------authentication---------------------#
 @app.post("/registeruser/", response_model=UserResponse)
 async def create_user(
@@ -61,7 +63,7 @@ async def create_user(
     try:
         image = await file.read()      
         # Spécifiez le chemin complet du dossier où vous souhaitez stocker l'image
-        upload_folder = r"C:\Users\hp\Desktop\PFE\PFE_FRONT\images\users"
+        upload_folder = r"C:\Users\pc\StudioProjects\pfe\PFE_FRONT\images\users"
         # id_surv_int=int(id_surv)
         # if id_surv == '' or id_surv is None:
         #  id_surv_int = 0
@@ -135,7 +137,7 @@ async def update_user(
             #    os.remove(db_user.photo)
 
             image = await file.read()
-            upload_folder = r"C:\Users\hp\Desktop\PFE\PFE_FRONT\images\users"
+            upload_folder = r"C:\Users\pc\StudioProjects\pfe\PFE_FRONT\images\users"
 
             # Générez un nom de fichier unique pour la nouvelle photo
             unique_filename = f"{datetime.now().timestamp()}.jpg"
