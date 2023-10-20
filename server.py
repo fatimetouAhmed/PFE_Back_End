@@ -11,6 +11,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError,jwt
 from passlib.context import CryptContext
 import datetime
+from prediction import predict_face
 from auth.authConfig import PV,recupere_userid,create_user,read_data_users,read_data_users_by_id,Superviseur,Surveillant,Administrateur,UserResponse,UserCreate,get_db,authenticate_user,create_access_token,ACCESS_TOKEN_EXPIRE_MINUTES,check_Adminpermissions,check_superviseurpermissions,check_survpermissions,User
 #import redis
 from fastapi import FastAPI, File, UploadFile
@@ -29,6 +30,8 @@ from routes.etudiants import addetudiant
 from fastapi.middleware.cors import CORSMiddleware
 from config.db import con
 from routes.annee import annee_router
+from routes.scolarite import scolarite_router
+from routes.statis import statis_router
 app=FastAPI()
 Session = sessionmaker(bind=con)
 # Create a session
@@ -49,6 +52,10 @@ app.add_middleware(
 
 # Définir les routes pour l'ensemble d'itinéraires annee
 app.include_router(annee_router, prefix="/annees", tags=["Annes"])
+# Définir les routes pour l'ensemble d'itinéraires annee
+app.include_router(scolarite_router, prefix="/scolarites", tags=["Scolarites"])
+# Définir les routes pour l'ensemble d'itinéraires statis
+app.include_router(statis_router, prefix="/statis", tags=["Statis"])
 #--------------------------authentication---------------------#
 @app.post("/registeruser/", response_model=UserResponse)
 async def create_user(
@@ -252,7 +259,31 @@ async def ajouteretudiant(matricule: str= Form(...),nom: str= Form(...),
 
     nationalite: str = Form(...),
     date_inscription: datetime = Form(...),file: UploadFile = File(...),db: Session = Depends(get_db)):
-    result=addetudiant(matricule,nom,prenom,genre,date_N,lieu_n,email,tel,id_fil,nni,nationalite,date_inscription,file,db)
-    return result
+    result= await addetudiant(matricule,nom,prenom,genre,date_N,lieu_n,email,tel,id_fil,nni,nationalite,date_inscription,file,db)
+    return {"data": result}
+
+@app.post('/api/predict')
+async def predict_image(file: UploadFile = File(...), user_id: int = Depends(recupere_userid), user: User = Depends(check_survpermissions)):
+    try:
+        image = await file.read()
+        with open("image.jpg", "wb") as f:
+            f.write(image)
+            print("image.jpg")
+        result = await predict_face("image.jpg", user_id, user)
+        return result
+    except Exception as e:
+        return {"error": str(e)}
+@app.get("/current_user_id")
+def get_current_user_route(user: User = Depends(get_current_user)):
+
+    user_data = {
+        "id": user.id,
+        "nom": user.nom,
+        "prenom": user.prenom,
+        "email": user.email,
+        "role": user.role
+    }
+    user_id = user_data["id"]
+    return user_id
 if __name__ == "__main__":
-    uvicorn.run(app, port=8000, host='127.0.0.1')
+    uvicorn.run(app, port=8000, host='192.168.129.113')
