@@ -223,7 +223,18 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
         expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+@app.get("/current_user_id")
+def get_current_user_route(user: User = Depends(get_current_user)):
 
+    user_data = {
+        "id": user.id,
+        "nom": user.nom,
+        "prenom": user.prenom,
+        "email": user.email,
+        "role": user.role
+    }
+    user_id = user_data["id"]
+    return user_id
 
 @app.get("/admin")
 def admin_route(user: User = Depends(check_Adminpermissions)):
@@ -253,6 +264,18 @@ async def ajouteretudiant(matricule: str= Form(...),nom: str= Form(...),
     date_inscription: datetime = Form(...),file: UploadFile = File(...),db: Session = Depends(get_db)):
     result= await addetudiant(matricule,nom,prenom,genre,date_N,lieu_n,email,tel,id_fil,nni,nationalite,date_inscription,file,db)
     return {"data": result}
+@app.get("/get_surveillant_info/")
+def get_surveillant_info(user: User = Depends(check_survpermissions)):
+    surveillant = user.surveillant
+    return {
+        "id": user.id,
+        "nom": user.nom,
+        "prenom": user.prenom,
+        "email": user.email,
+        "role": user.role,
+        "photo": user.photo,
+        "typecompte": surveillant.typecompte
+    }
 
 @app.post('/api/predict')
 async def predict_image(file: UploadFile = File(...), user_id: int = Depends(recupere_userid), user: User = Depends(check_survpermissions)):
@@ -260,10 +283,103 @@ async def predict_image(file: UploadFile = File(...), user_id: int = Depends(rec
         image = await file.read()
         with open("image.jpg", "wb") as f:
             f.write(image)
-            print("image.jpg")
+           # print("image.jpg")
         result = await predict_face("image.jpg", user_id, user)
         return result
     except Exception as e:
         return {"error": str(e)}
+    
+#pv
+#pv
+@app.post('/api/pv')
+async def pv(file: UploadFile = File(...), current_user: User = Depends(recupere_user),description: str = Form(...), nni: str= Form(...),tel: int= Form(...), user: User = Depends(check_survpermissions),db: Session = Depends(get_db)):
+    surveillant = db.query(Surveillant).filter_by(user_id=current_user['id']).first()
+
+    try:
+        image = await file.read()      
+        # Spécifiez le chemin complet du dossier où vous souhaitez stocker l'image
+        upload_folder = r"C:\Users\hp\Desktop\PFE\PFE_FRONT\images\pv"
+       
+        # Assurez-vous que le dossier existe, sinon, créez-le
+        os.makedirs(upload_folder, exist_ok=True)      
+        # Générez un nom de fichier unique (par exemple, basé sur le timestamp)
+        unique_filename = f"{datetime.now().timestamp()}.jpg"   
+        # Construisez le chemin complet du fichier
+        file_path = os.path.join(upload_folder, unique_filename)  
+        file_path_str = str(file_path).replace("\\", "/")
+        print(file_path_str)
+        
+        # Enregistrez l'image dans le dossier spécifié
+        with open(file_path, "wb") as f:
+            f.write(image)
+        pv_record = PV(photo=file_path,description=description,nni=nni,tel=tel,surveillant_id=surveillant.user_id,date_pv=datetime.now())  # Utilisez le chemin du fichier comme URL de la photo
+        db.add(pv_record)
+        db.commit()
+        print(file_path)
+        
+        return file_path
+    except Exception as e:
+        return {"error": str(e)}
+@app.get('/pv')
+async def get_pvs():
+    Session = sessionmaker(bind=con)
+    session = Session()
+    query = select(PV.__table__.c.id,
+                   PV.__table__.c.photo,
+                   PV.__table__.c.description,
+                   PV.__table__.c.nni,
+                    PV.__table__.c.tel,
+                   User.prenom,PV.__table__.c.date_pv). \
+        join(Surveillant, Surveillant.user_id == PV.__table__.c.surveillant_id). \
+        join(User, Surveillant.user_id == User.id)
+
+    result = session.execute(query).fetchall()
+    results = []
+    for row in result:
+        nom_fichier = os.path.basename(row.photo)
+        result = {
+                  "id": row.id,
+                  "photo": nom_fichier,
+                  "description": row.description,
+                  "nni": row.nni,
+                  "tel": row.tel,
+                  "surveillant": row.prenom,
+                  "date_pv": row.date_pv,
+                  }  # Créez un dictionnaire avec la clé "nom" et la valeur correspondante
+        results.append(result)
+    
+    return results
+@app.get('/pv/{id}')
+async def get_pvs_by_id(id:int):
+    Session = sessionmaker(bind=con)
+    session = Session()
+    query = select(PV.__table__.c.id,
+                   PV.__table__.c.photo,
+                   PV.__table__.c.description,
+                   PV.__table__.c.nni,
+                    PV.__table__.c.tel,
+                   User.prenom,PV.__table__.c.date_pv). \
+        join(Surveillant, Surveillant.user_id == PV.__table__.c.surveillant_id). \
+        join(User, Surveillant.user_id == User.id).filter(PV.__table__.c.id==id)
+    result = session.execute(query).fetchall()
+    results = []
+    for row in result:
+        nom_fichier = os.path.basename(row.photo)
+        result = {
+                  "id": row.id,
+                  "photo": nom_fichier,
+                  "description": row.description,
+                  "nni": row.nni,
+                  "tel": row.tel,
+                  "surveillant": row.prenom,
+                  "date_pv": row.date_pv,
+                  }  # Créez un dictionnaire avec la clé "nom" et la valeur correspondante
+        results.append(result)
+    
+    return results
+@app.get('/pv/curentuser')
+async def get_pvs_user(user_id: int = Depends(recupere_userid), user: User = Depends(check_survpermissions), db: Session = Depends(get_db)):
+    pvs = db.query(PV).filter_by(surveillant_id=user_id).all()
+    return pvs
 if __name__ == "__main__":
     uvicorn.run(app, port=8000, host='127.0.0.1')
