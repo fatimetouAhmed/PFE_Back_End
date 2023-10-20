@@ -9,8 +9,8 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import create_engine, Column, Integer, String ,Sequence
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-from dbconfig import get_etudiant 
-#from routes.historique import write_data
+from dbconfig import get_etudiant ,get_infoexamun
+from routes.historique import write_data
 from fastapi import APIRouter,Depends
 from auth.authConfig import recupere_userid,create_user,UserResponse,UserCreate,get_db,authenticate_user,create_access_token,ACCESS_TOKEN_EXPIRE_MINUTES,check_Adminpermissions,check_superviseurpermissions,check_survpermissions,User
 import os
@@ -30,12 +30,11 @@ models = [
 
 async def predict_face(image_path,user_id: int = Depends(recupere_userid),user: User = Depends(check_survpermissions)):
   
-        print( "test",image_path)
         
-        results = DeepFace.find(img_path =image_path, db_path = "C:/Users/hp/Desktop/PFE/PFE_FRONT/images/etudiants",model_name=models[1],enforce_detection=False)
+       results = DeepFace.find(img_path =image_path, db_path = "C:/Users/hp/Desktop/PFE/PFE_FRONT/images/etudiants",model_name=models[1],enforce_detection=False)
     #    print("---------------------------"+pathi+"--------------------------------")
         
-        try:
+       try:
             # print("resultats", results)
             photo = list(map(lambda x: x['identity'], results))
             if len(photo) <= 0:
@@ -49,24 +48,24 @@ async def predict_face(image_path,user_id: int = Depends(recupere_userid),user: 
                     print("id:",user_id)
                     id = get_etudiant(url)
                     print(id)
-                    #donne = await get_infoexamun(image_path,image_name, id, user_id, user)
-                    return id
+                    donne = await get_infoexamun(image_path,image_name, id, user_id, user)
+                    return donne
                 else:
                     raise Exception("Étudiant inexistant")
-        except Exception as e:
-            #url = photo[0][0] if len(photo) > 0 and len(photo[0]) > 0 else None
-            #timestamp = datetime.now().timestamp()
-            #notification_filename = f"{timestamp}.jpg"
+       except Exception as e:
+            url = photo[0][0] if len(photo) > 0 and len(photo[0]) > 0 else None
+            timestamp = datetime.now().timestamp()
+            notification_filename = f"{timestamp}.jpg"
                 
-            #notification_folder = "C:/Users/hp/Desktop/PFE/PFE_FRONT/images/notifications"
-            #notification_path = os.path.join(notification_folder, notification_filename)
-            #os.rename(image_path, notification_path)
+            notification_folder = "C:/Users/hp/Desktop/PFE/PFE_FRONT/images/notifications"
+            notification_path = os.path.join(notification_folder, notification_filename)
+            os.rename(image_path, notification_path)
             
             # Appelez la fonction write_data avec l'URL du dossier "notifications"
-            #image_etu_url = notification_path.replace("\\", "/")
-            #print("exception")
-            #result = await write_data(image_etu_url,user_id, user,)
-            return False
+            image_etu_url = notification_path.replace("\\", "/")
+            print("exception")
+            result = await write_data(image_etu_url,user_id, user,)
+            return result
 
       
 
