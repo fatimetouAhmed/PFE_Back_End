@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import and_,select
 from sqlalchemy import create_engine
 from schemas.examun import Evaluations
-from models.anne import Annees,Departement,Formation,PV,DepartementSuperviseurs,Niveau,Historiques,Annedep,Surveillance,Filiere,Matiere,Etudiant,Salle,Surveillance,Semestre,Evaluation,Superviseur,Surveillant,User
+from models.anne import Annees,Departement,Formation,PV,DepartementSuperviseurs,Niveau,Historiques,Annedep,Filiere,Matiere,Etudiant,Salle,Semestre,Evaluation,Superviseur,Surveillant,User,Notifications
 statis_router=APIRouter()
 @statis_router.get("/examun/nom")
 async def examun_nom():
@@ -51,15 +51,15 @@ async def historique_id(id:int):
     # Créer une session
     Session = sessionmaker(bind=con)
     session = Session()
-    count = session.query(Historiques).filter(Historiques.id_exam == id).count() 
+    count = session.query(Notifications).filter(Notifications.id_exam == id).count() 
     return count
 @statis_router.get("/historique/matieres/{id}")
 async def historique_id(id:int):
     # Créer une session
     Session = sessionmaker(bind=con)
     session = Session()
-    count = session.query(Historiques).\
-            join(Evaluation, Historiques.id_exam == Evaluation.id).\
+    count = session.query(Notifications).\
+            join(Evaluation, Notifications.id_exam == Evaluation.id).\
             join(Matiere, Evaluation.id_mat == Matiere.id).\
             filter(Matiere.id == id).count()
     return count
@@ -165,8 +165,8 @@ async def historique_etudiant_id(id:int):
     session = Session()
     
     # Effectuer la requête en utilisant les relations définies dans vos modèles
-    count = session.query(Historiques).\
-            join(Evaluation, Historiques.id_exam == Evaluation.id).\
+    count = session.query(Notifications).\
+            join(Evaluation, Notifications.id_exam == Evaluation.id).\
             join(Matiere, Evaluation.id_mat == Matiere.id).\
             join(Filiere, Matiere.id_fil == Filiere.id).\
             join(Etudiant, Filiere.id == Etudiant.id_fil).\
@@ -181,8 +181,8 @@ async def historique_semestre_id(id:int):
     session = Session()
     
     # Effectuer la requête en utilisant les relations définies dans vos modèles
-    count = session.query(Historiques).\
-            join(Evaluation, Historiques.id_exam == Evaluation.id).\
+    count = session.query(Notifications).\
+            join(Evaluation, Notifications.id_exam == Evaluation.id).\
             join(Matiere, Evaluation.id_mat == Matiere.id).\
             join(Filiere, Matiere.id_fil == Filiere.id).\
             join(Semestre, Filiere.semestre_id == Semestre.id).\
@@ -197,8 +197,8 @@ async def historique_filiere_id(id:int):
     session = Session()
     
     # Effectuer la requête en utilisant les relations définies dans vos modèles
-    count = session.query(Historiques).\
-            join(Evaluation, Historiques.id_exam == Evaluation.id).\
+    count = session.query(Notifications).\
+            join(Evaluation, Notifications.id_exam == Evaluation.id).\
             join(Matiere, Evaluation.id_mat == Matiere.id).\
             join(Filiere, Matiere.id_fil == Filiere.id).\
             filter(Filiere.id == id).count()
@@ -212,8 +212,8 @@ async def historique_semestre_id(id:int):
     session = Session()
     
     # Effectuer la requête en utilisant les relations définies dans vos modèles
-    count = session.query(Historiques).\
-            join(Evaluation, Historiques.id_exam == Evaluation.id).\
+    count = session.query(Notifications).\
+            join(Evaluation, Notifications.id_exam == Evaluation.id).\
             join(Matiere, Evaluation.id_mat == Matiere.id).\
             join(Filiere, Matiere.id_fil == Filiere.id).\
             join(Semestre, Filiere.semestre_id == Semestre.id).\
@@ -230,8 +230,8 @@ async def historique_salle_id(id:int):
     # Créer une session
     Session = sessionmaker(bind=con)
     session = Session()
-    count = session.query(Historiques).\
-            join(Evaluation, Historiques.id_exam == Evaluation.id).\
+    count = session.query(Notifications).\
+            join(Evaluation, Notifications.id_exam == Evaluation.id).\
             join(Salle, Evaluation.id_sal == Salle.id).\
             filter(Salle.id == id).count()
     return count

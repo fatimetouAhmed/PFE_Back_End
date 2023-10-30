@@ -4,7 +4,7 @@ import uvicorn
 from starlette.responses import JSONResponse
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import create_engine, Column, Integer, String ,Sequence,and_,select
+from sqlalchemy import create_engine, Column, Integer, String ,Sequence,and_,select,delete
 from sqlalchemy.ext.declarative import declarative_base
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -12,7 +12,7 @@ from jose import JWTError,jwt
 from passlib.context import CryptContext
 import datetime
 from prediction import predict_face
-from auth.authConfig import PV,recupere_userid,create_user,read_data_users,read_data_users_by_id,Superviseur,Surveillant,Administrateur,UserResponse,UserCreate,get_db,authenticate_user,create_access_token,ACCESS_TOKEN_EXPIRE_MINUTES,check_Adminpermissions,check_superviseurpermissions,check_survpermissions,User
+from auth.authConfig import PV,recupere_userid,create_user,read_data_users,read_data_users_by_id,Evaluation,Superviseur,Surveillant,Administrateur,UserResponse,UserCreate,get_db,authenticate_user,create_access_token,ACCESS_TOKEN_EXPIRE_MINUTES,check_Adminpermissions,check_superviseurpermissions,check_survpermissions,User
 #import redis
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
@@ -32,8 +32,15 @@ from config.db import con
 from routes.annee import annee_router
 from routes.scolarite import scolarite_router
 from routes.statis import statis_router
+from routes.notifications import notification_router
+from routes.salle import salle_router
+from routes.data import data_router
+from routes.surveillance import surveillance_router
+from routes.jour import jour_router
+from routes.creneau import creneau_router
+from routes.creneau_jour import creneaujour_router
 app=FastAPI()
-Session = sessionmaker(bind=con)
+Session = sessionmaker(bind=create_engine("mysql+pymysql://root@localhost:3306/db_mobile3"))
 # Create a session
 session = Session
 
@@ -47,9 +54,16 @@ app.add_middleware(
 )
 # Définir les routes pour l'ensemble d'itinéraires utilisateur
 # app.include_router(user_router, prefix="", tags=["Utilisateurs"])
-
+# Définir les routes pour l'ensemble d'itinéraires surveillance
+app.include_router(creneaujour_router, prefix="/creneau_jours", tags=["Creneaux_Jours"])
+app.include_router(creneau_router, prefix="/creneaux", tags=["Creneaux"])
+app.include_router(jour_router, prefix="/jours", tags=["Jours"])
+app.include_router(data_router, prefix="/datas", tags=["Datas"])
+app.include_router(surveillance_router, prefix="/surveillances", tags=["Surveillances"])
 # Définir les routes pour l'ensemble d'itinéraires etudiant
-
+app.include_router(salle_router, prefix="/salles", tags=["Salles"])
+# Définir les routes pour l'ensemble d'itinéraires etudiant
+app.include_router(notification_router, prefix="/notifications", tags=["Notifications"])
 # Définir les routes pour l'ensemble d'itinéraires annee
 app.include_router(annee_router, prefix="/annees", tags=["Annes"])
 # Définir les routes pour l'ensemble d'itinéraires annee
@@ -64,9 +78,11 @@ async def create_user(
     email: str = Form(...),
     pswd: str = Form(...),
     role: str = Form(...),
-    superviseur_id: int = Form(...),
-    file: UploadFile = File(...), db: Session = Depends(get_db)):
-    
+    id_sal: int = Form(...),
+    file: UploadFile = File(...)):
+    engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
+    Session = sessionmaker(bind=engine)
+    session = Session()
     try:
         image = await file.read()      
         # Spécifiez le chemin complet du dossier où vous souhaitez stocker l'image
@@ -93,26 +109,29 @@ async def create_user(
         # date_insecription = datetime.strptime('2023-09-01T22:56:45.274Z', '%Y-%m-%dT%H:%M:%S.%fZ')
         hashed_password = hash_password('ghhg')
         db_user = User(nom=nom, prenom=prenom, email=email, pswd=hashed_password, role=role ,photo=file_path_str)
-        db.add(db_user)
-        db.commit()
-        db.refresh(db_user)
+        session.add(db_user)
+        session.commit()
+        session.refresh(db_user)
 
         if role == "admin":
             admin = Administrateur(user_id=db_user.id)
-            db.add(admin)
-            db.commit()
-            db.refresh(admin)
+            session.add(admin)
+            session.commit()
+            session.refresh(admin)
         elif role == "surveillant":
-            superviseur_id = superviseur_id  # Récupération du superviseur_id depuis user
-            surveillant = Surveillant(user_id=db_user.id, superviseur_id=superviseur_id)  # Utilisation du superviseur_id lors de la création du surveillant
-            db.add(surveillant)
-            db.commit()
-            db.refresh(surveillant)
+            print('-----------------------------------------------------------')
+            print(id_sal)
+            id_sal = id_sal  # Récupération du superviseur_id depuis user
+            surveillant = Surveillant(user_id=db_user.id, id_sal=id_sal)
+ # Utilisation du superviseur_id lors de la création du surveillant
+            session.add(surveillant)
+            session.commit()
+            session.refresh(surveillant)
         elif role == "superviseur":
             superviseur = Superviseur(user_id=db_user.id)
-            db.add(superviseur)
-            db.commit()
-            db.refresh(superviseur)
+            session.add(superviseur)
+            session.commit()
+            session.refresh(superviseur)
 
         return UserResponse(id=db_user.id, nom=db_user.nom, prenom=db_user.prenom, email=db_user.email, role=db_user.role,photo=db_user.photo)
     except Exception as e:
@@ -126,14 +145,15 @@ async def update_user(
     email: str = Form(None),
     pswd: str = Form(None),
     role: str = Form(None),
-    superviseur_id: int = Form(None),
+    id_sal: int = Form(None),
     file: UploadFile = File(None),
-    db: Session = Depends(get_db),
-    user: User = Depends(check_Adminpermissions)
 ):
+    engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
+    Session = sessionmaker(bind=engine)
+    session = Session()
     try:
         # Recherchez l'utilisateur dans la base de données par ID
-        db_user = db.query(User).filter(User.id == user_id).first()
+        db_user = session.query(User).filter(User.id == user_id).first()
         
         if not db_user:
             raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
@@ -173,11 +193,11 @@ async def update_user(
             db_user.pswd = hash_password(pswd)
         if role:
             db_user.role = role
-        if superviseur_id:
-            db_user.superviseur_id = superviseur_id
+        if id_sal:
+            db_user.id_sal = id_sal
 
-        db.commit()
-        db.refresh(db_user)
+        session.commit()
+        session.refresh(db_user)
 
         return UserResponse(
             id=db_user.id,
@@ -190,7 +210,30 @@ async def update_user(
     except Exception as e:
         # Gérez les erreurs en conséquence
         raise HTTPException(status_code=500, detail="Erreur lors de la mise à jour de l'utilisateur")
-
+    
+@app.delete("/usersuveillant/{id}")
+async def delete_data(id:int):
+    engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    suveillant=delete(Surveillant).where(Surveillant.user_id==id)
+    session.execute(suveillant)
+    session.commit()
+    user=delete(User).where(User.id==id)
+    session.execute(user)
+    session.commit()
+        
+@app.delete("/usersuperviseur/{id}")
+async def delete_data(id:int):
+    engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    superviseur=delete(Superviseur).where(Superviseur.user_id==id)
+    session.execute(superviseur)
+    session.commit()
+    user=delete(User).where(User.id==id)
+    session.execute(user)
+    session.commit()
 @app.put("/{id}")
 async def update_data(id:int,usercreate:UserCreate,user: User = Depends(check_Adminpermissions)):
     con.execute(User.__table__.update().values(
@@ -217,8 +260,8 @@ async def data_user_nom():
     user_data = await read_users_nom()
     return user_data
 @app.get("/id_superviseur/{nom}")
-async def data_user_id(nom:str,user: User = Depends(check_Adminpermissions)):
-   user_data = await superviseur_id(nom,user)
+async def data_user_id(nom:str):
+   user_data = await superviseur_id(nom)
    return user_data
 @app.post("/token")
 def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -231,7 +274,19 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
         expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
-
+@app.get("/current_user")
+def get_current_user_route(user: User = Depends(get_current_user)):
+    nom_fichier = os.path.basename(user.photo)
+    user_data = {
+        "id": user.id,
+        "nom": user.nom,
+        "prenom": user.prenom,
+        "email": user.email,
+        "role": user.role,
+        "photo":nom_fichier
+    }
+  
+    return user_data
 
 @app.get("/admin")
 def admin_route(user: User = Depends(check_Adminpermissions)):
@@ -261,6 +316,18 @@ async def ajouteretudiant(matricule: str= Form(...),nom: str= Form(...),
     date_inscription: datetime = Form(...),file: UploadFile = File(...),db: Session = Depends(get_db)):
     result= await addetudiant(matricule,nom,prenom,genre,date_N,lieu_n,email,tel,id_fil,nni,nationalite,date_inscription,file,db)
     return {"data": result}
+@app.get("/get_surveillant_info/")
+def get_surveillant_info(user: User = Depends(check_survpermissions)):
+    surveillant = user.surveillant
+    return {
+        "id": user.id,
+        "nom": user.nom,
+        "prenom": user.prenom,
+        "email": user.email,
+        "role": user.role,
+        "photo": user.photo,
+        "typecompte": surveillant.typecompte
+    }
 
 @app.post('/api/predict')
 async def predict_image(file: UploadFile = File(...), user_id: int = Depends(recupere_userid), user: User = Depends(check_survpermissions)):
@@ -268,7 +335,7 @@ async def predict_image(file: UploadFile = File(...), user_id: int = Depends(rec
         image = await file.read()
         with open("image.jpg", "wb") as f:
             f.write(image)
-            print("image.jpg")
+           # print("image.jpg")
         result = await predict_face("image.jpg", user_id, user)
         return result
     except Exception as e:
@@ -285,5 +352,125 @@ def get_current_user_route(user: User = Depends(get_current_user)):
     }
     user_id = user_data["id"]
     return user_id
+@app.get("/current_user_nom")
+def get_current_user_route(user: User = Depends(get_current_user)):
+
+    user_data = {
+        "id": user.id,
+        "nom": user.nom,
+        "prenom": user.prenom,
+        "email": user.email,
+        "role": user.role
+    }
+    user_nom = user_data["prenom"]+' '+user_data["nom"]
+    return user_nom
+@app.get("/current_user_photo")
+def get_current_user_route(user: User = Depends(get_current_user)):
+    nom_fichier = os.path.basename(user.photo)
+    user_data = {
+        "id": user.id,
+        "nom": user.nom,
+        "prenom": user.prenom,
+        "email": user.email,
+        "role": user.role,
+        "photo":nom_fichier
+    }
+    user_photo = user_data["photo"]
+    return user_photo
+@app.post('/api/pv')
+async def pv(file: UploadFile = File(...),nom:str=Form(...),type:str=Form(...),id_surv:int=Form(...),description: str = Form(...), nni: str= Form(...),tel: int= Form(...)):
+    # surveillant = db.query(Surveillant).filter_by(user_id=current_user['id']).first()
+        engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        now = datetime.now()  
+        id_eval=session.query(Evaluation.id).join(Surveillant,Surveillant.id_sal==Evaluation.id_sal).filter(and_(Surveillant.user_id==id_surv,now >= Evaluation.date_debut, now <= Evaluation.date_fin)).all()
+    # try:
+        image = await file.read()      
+        # Spécifiez le chemin complet du dossier où vous souhaitez stocker l'image
+        upload_folder = r"C:\Users\pc\StudioProjects\pfe\PFE_FRONT\images\pv"
+       
+        # Assurez-vous que le dossier existe, sinon, créez-le
+        os.makedirs(upload_folder, exist_ok=True)      
+        # Générez un nom de fichier unique (par exemple, basé sur le timestamp)
+        unique_filename = f"{datetime.now().timestamp()}.jpg"   
+        # Construisez le chemin complet du fichier
+        file_path = os.path.join(upload_folder, unique_filename)  
+        file_path_str = str(file_path).replace("\\", "/")
+        print(file_path_str)
+        
+        # Enregistrez l'image dans le dossier spécifié
+        with open(file_path, "wb") as f:
+            f.write(image)
+        pv_record = PV(nom=nom,photo=file_path, description=description, nni=nni, tel=tel,type=type, surveillant_id=id_surv, date_pv=datetime.now(),etat='initial',id_eval=id_eval[0][0])
+        # Utilisez le chemin du fichier comme URL de la photo
+        session.add(pv_record)
+        session.commit()
+        print(file_path)
+        
+        return file_path
+    # except Exception as e:
+        # return {"error": str(e)}
+@app.get('/pv')
+async def get_pvs():
+    Session = sessionmaker(bind=con)
+    session = Session()
+    query = select(PV.__table__.c.id,
+                   PV.__table__.c.photo,
+                   PV._table_.c.description,
+                   PV._table_.c.nni,
+                    PV.__table__.c.tel,
+                   User.prenom,PV._table_.c.date_pv). \
+        join(Surveillant, Surveillant.user_id == PV._table_.c.surveillant_id). \
+        join(User, Surveillant.user_id == User.id)
+
+    result = session.execute(query).fetchall()
+    results = []
+    for row in result:
+        nom_fichier = os.path.basename(row.photo)
+        result = {
+                  "id": row.id,
+                  "photo": nom_fichier,
+                  "description": row.description,
+                  "nni": row.nni,
+                  "tel": row.tel,
+                  "surveillant": row.prenom,
+                  "date_pv": row.date_pv,
+                  }  # Créez un dictionnaire avec la clé "nom" et la valeur correspondante
+        results.append(result)
+    
+    return results
+@app.get('/pv/{id}')
+async def get_pvs_by_id(id:int):
+    Session = sessionmaker(bind=con)
+    session = Session()
+    query = select(PV.__table__.c.id,
+                   PV.__table__.c.photo,
+                   PV._table_.c.description,
+                   PV._table_.c.nni,
+                    PV.__table__.c.tel,
+                   User.prenom,PV._table_.c.date_pv). \
+        join(Surveillant, Surveillant.user_id == PV._table_.c.surveillant_id). \
+        join(User, Surveillant.user_id == User.id).filter(PV.__table__.c.id==id)
+    result = session.execute(query).fetchall()
+    results = []
+    for row in result:
+        nom_fichier = os.path.basename(row.photo)
+        result = {
+                  "id": row.id,
+                  "photo": nom_fichier,
+                  "description": row.description,
+                  "nni": row.nni,
+                  "tel": row.tel,
+                  "surveillant": row.prenom,
+                  "date_pv": row.date_pv,
+                  }  # Créez un dictionnaire avec la clé "nom" et la valeur correspondante
+        results.append(result)
+    
+    return results
+@app.get('/pv/curentuser')
+async def get_pvs_user(user_id: int = Depends(recupere_userid), user: User = Depends(check_survpermissions), db: Session = Depends(get_db)):
+    pvs = db.query(PV).filter_by(surveillant_id=user_id).all()
+    return pvs
 if __name__ == "__main__":
-    uvicorn.run(app, port=8000, host='192.168.129.113')
+    uvicorn.run(app, port=8000, host='192.168.245.113')

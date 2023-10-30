@@ -1,71 +1,31 @@
 from fastapi import APIRouter,Depends
-from sqlalchemy.orm import selectinload,joinedload,sessionmaker
+from sqlalchemy.orm import selectinload,joinedload,sessionmaker,aliased
 from datetime import datetime
+
 # from auth.authConfig import create_user,UserResponse,UserCreate,get_db,authenticate_user,create_access_token,ACCESS_TOKEN_EXPIRE_MINUTES,check_Adminpermissions,check_superviseurpermissions,check_survpermissions,User
 from config.db import con
 import os
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import and_,select
+from sqlalchemy import and_,select,update,delete
 from sqlalchemy import create_engine
+from sqlalchemy import func
 from schemas.examun import Evaluations
-from models.anne import Annees,Departement,Formation,PV,DepartementSuperviseurs,Niveau,Historiques,Annedep,Surveillance,Filiere,Matiere,Etudiant,Salle,Surveillance,Semestre,Evaluation,Superviseur,Surveillant,User
-scolarite_router=APIRouter()
-@scolarite_router.get("/informations")
-def get_data_for_level():
-    engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
-    Session = sessionmaker(bind=engine)
-    session = Session()
-
-    level_name = 'L1'
-    dep_name = 'informatique'
-
-    try:
-        level = session.query(Niveau).filter(Niveau.nom == level_name).first()
-        dep = session.query(Departement).filter(Departement.nom_departement == dep_name).first()
-        if (level and dep):
-            data = session.query(Evaluation, Surveillance, Superviseur, Surveillant). \
-                join(Matiere, Evaluation.id_mat == Matiere.id). \
-                join(Surveillance, Surveillance.id_sal == Evaluation.id_sal). \
-                join(Surveillant, Surveillant.user_id == Surveillance.id_surv). \
-                join(Superviseur, Superviseur.user_id == Surveillant.superviseur_id). \
-                join(DepartementSuperviseurs, and_(DepartementSuperviseurs.id_sup == Superviseur.user_id,
-                                                DepartementSuperviseurs.id_dep == dep.id)). \
-                join(Filiere, Filiere.id == Matiere.id_fil). \
-                join(Semestre, Semestre.id == Filiere.semestre_id). \
-                join(Niveau, Niveau.id == Semestre.niveau_id). \
-                filter(Niveau.id == level.id).all()
-
-            # Convert the data to a JSON-serializable format
-            json_data = []
-            for evaluation, surveillance, superviseur, surveillant in data:
-                json_data.append({
-                    "Evaluation": evaluation.__dict__,
-                    "Surveillance": surveillance.__dict__,
-                    "Superviseur": superviseur.__dict__,
-                    "Surveillant": surveillant.__dict__
-                })
-
-            return json_data
-    finally:
-        session.close()
-        
-@scolarite_router.get("/evaluations/{dep_name}/{level_name}")
-def get_data_evaluations_for_level(dep_name:str,level_name:str):
+from models.anne import Annees,Departement,Formation,PV,DepartementSuperviseurs,Niveau,Historiques,Annedep,SurveillanceSuperviseur,Filiere,Matiere,Etudiant,Salle,Semestre,Evaluation,Superviseur,Surveillant,User
+scolarite_router=APIRouter()      
+@scolarite_router.get("/evaluations/{level_name}")
+def get_data_evaluations_for_level(level_name:str):
     engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
     Session = sessionmaker(bind=engine)
     session = Session()
     try:
-        level = session.query(Niveau).filter(Niveau.nom == level_name).first()
-        dep = session.query(Departement).filter(Departement.nom_departement == dep_name).first()
-        if (level and dep):
+        level = session.query(Filiere).filter(Filiere.libelle == level_name).first()
+        # dep = session.query(Departement).filter(Departement.nom_departement == dep_name).first()
+        if (level):
             data = session.query(Evaluation.id,Evaluation.type,Evaluation.date_debut,Evaluation.date_fin,Evaluation.id_mat,Evaluation.id_sal,Matiere.libelle, Salle.nom). \
                 join(Matiere, Matiere.id == Evaluation.id_mat).\
                 join(Salle, Salle.id == Evaluation.id_sal).\
                 join(Filiere, Filiere.id == Matiere.id_fil). \
-                join(Semestre, Semestre.id == Filiere.semestre_id). \
-                join(Niveau, Niveau.id == Semestre.niveau_id). \
-                filter(Niveau.id == level.id).all()
-            
+                filter(Filiere.id == level.id).all()
             results = []
             for row in data:
                 result = {
@@ -84,20 +44,17 @@ def get_data_evaluations_for_level(dep_name:str,level_name:str):
     finally:
         session.close()
         
-@scolarite_router.get("/matieres/{dep_name}/{level_name}")
-def get_data_matieres_for_level(dep_name:str,level_name:str):
+@scolarite_router.get("/matieres/{level_name}")
+def get_data_matieres_for_level(level_name:str):
     engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
     Session = sessionmaker(bind=engine)
     session = Session()
     try:
-        level = session.query(Niveau).filter(Niveau.nom == level_name).first()
-        dep = session.query(Departement).filter(Departement.nom_departement == dep_name).first()
-        if (level and dep):
+        level = session.query(Filiere).filter(Filiere.libelle == level_name).first()
+        if (level):
             data = session.query(Matiere.libelle). \
                 join(Filiere, Filiere.id == Matiere.id_fil). \
-                join(Semestre, Semestre.id == Filiere.semestre_id). \
-                join(Niveau, Niveau.id == Semestre.niveau_id). \
-                filter(Niveau.id == level.id).all()
+                filter(Filiere.id == level.id).all()
             
             results = []
             for row in data:
@@ -132,42 +89,54 @@ def get_data_salles_for_level():
 
 @scolarite_router.post("/")
 async def write_data(evaluation:Evaluations):
-    result = con.execute(Evaluation.__table__.insert().values(
-        type=evaluation.type,
+    engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    eval = Evaluation(
+            type=evaluation.type,
         date_debut=evaluation.date_debut,
-        date_fin=evaluation.date_fin,
+        date_fin=evaluation.date_fin,  # Correction ici
         id_sal=evaluation.id_sal,
         id_mat=evaluation.id_mat,
-    ))
-
-    if result.rowcount == 1:
-        return {"message": "Insertion réussie!"}
-    else:
-        return {"message": "Échec de l'insertion."}
+       )
+    session.add(eval)
+    session.commit()
+    # if result.rowcount == 1:
+    #     return {"message": "Insertion réussie!"}
+    # else:
+    #     return {"message": "Échec de l'insertion."}
 
 
 @scolarite_router.put("/{id}")
 async def update_data(id:int,evaluation:Evaluations,):
-    result=con.execute(Evaluation.__table__.update().values(
+    engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    print(evaluation)
+    update_stmt = update(Evaluation).where(Evaluation.id == id).values(
         type=evaluation.type,
         date_debut=evaluation.date_debut,
         date_fin=evaluation.date_fin,  # Correction ici
         id_sal=evaluation.id_sal,
         id_mat=evaluation.id_mat,
-    ).where(Evaluation.__table__.c.id==id))
-    if result.rowcount == 1:
-        return {"message": "Modification réussie!"}
-    else:
-        return {"message": "Échec de la modification."}
+           )
+
+        # Execute the update statement
+    session.execute(update_stmt)
+        # Commit the changes
+    session.commit()
+  
 
 @scolarite_router.delete("/{id}")
 async def delete_data(id:int,):
-    result=con.execute(Evaluation.__table__.delete().where(Evaluation.__table__.c.id==id))
-    if result.rowcount == 1:
-        return {"message": "Supression réussie!"}
-    else:
-        return {"message": "Échec de la supression."}
-    
+    engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    delete_stmt = delete(Evaluation).where(Evaluation.id == id)
+    session.execute(delete_stmt)
+        # Commit the changes
+    session.commit()
+  
 @scolarite_router.get("/user_data/")
 async def read_data_users():
     engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
@@ -193,7 +162,11 @@ async def read_data_users():
     engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
     Session = sessionmaker(bind=engine)
     session = Session()
-    result_proxy = session.query(User.id,User.nom,User.prenom,User.photo,User.email,User.role).filter(User.role=='surveillant').all()
+    result_proxy = session.query(User.id, User.nom, User.prenom, User.photo, User.email, User.role, Surveillant.typecompte, Salle.nom.label('salle')).\
+        join(Surveillant, User.id == Surveillant.user_id).\
+        join(Salle, Surveillant.id_sal == Salle.id).\
+        filter(User.role == 'surveillant').all()
+
     results = []
     for row in result_proxy:
         nom_fichier = os.path.basename(row.photo)
@@ -204,45 +177,60 @@ async def read_data_users():
             "email": row.email,
             "role": row.role,
             "photo": nom_fichier,
+            "typecompte": row.typecompte,
+            "salle": row.salle,
         }
         results.append(result)
-    return results    
-  
+    return results
+
 @scolarite_router.get('/pv')
 async def get_pvs():
     engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
     Session = sessionmaker(bind=engine)
     session = Session()
-    query = select(PV.__table__.c.id,
-                   PV.__table__.c.photo,
-                   PV.__table__.c.description,
-                   PV.__table__.c.nni,
-                    PV.__table__.c.tel,
-                   User.prenom,PV.__table__.c.date_pv)
-    # . \
-    #     join(Surveillant, Surveillant.user_id == PV.__table__.c.surveillant_id). \
-    #     join(User, Surveillant.user_id == User.id).filter(PV.__table__.c.id==id)
+    data = session.query(PV.id,
+                   PV.nom,
+                    PV.photo,
+                   PV.description,
+                   PV.nni,
+                    PV.tel,PV.etat,
+                   User.prenom,PV.date_pv). \
+      join(Surveillant, PV.surveillant_id == Surveillant.user_id). \
+            join(User, Surveillant.user_id == User.id)
 
-    result = session.execute(query).fetchall()
+    # result = session.execute(query).fetchall()
     results = []
-    for row in result:
+    for row in data:
         nom_fichier = os.path.basename(row.photo)
         result = {
                   "id": row.id,
+                "nom": row.nom,
                   "photo": nom_fichier,
                   "description": row.description,
                   "nni": row.nni,
                   "tel": row.tel,
+                  "etat": row.etat,
                   "surveillant": row.prenom,
                   "date_pv": row.date_pv,
                   }  # Créez un dictionnaire avec la clé "nom" et la valeur correspondante
         results.append(result)
     
     return results  
+@scolarite_router.put("/pv/{id}")
+async def update_data(id:int):
+    con.execute(PV.__table__.update().values(
+        etat='accepter'
+    ).where(PV.__table__.c.id==id))
+    return "Succees"
+@scolarite_router.put("/pv/refuser/{id}")
+async def update_data(id:int):
+    con.execute(PV.__table__.update().values(
+        etat='refuser'
+    ).where(PV.__table__.c.id==id))
+    return "Succees"
 
 @scolarite_router.get("/salle/{nom}")
 async def salle_id(nom:str):
-    # Créer une session
     Session = sessionmaker(bind=con)
     session = Session()
 
@@ -269,44 +257,91 @@ async def matiere_id(nom:str):
         id=matiere.id   
     return id
 
-@scolarite_router.get("/Surveillances/{dep_name}/{level_name}")
-def get_data_for_level(dep_name:str,level_name:str):
+@scolarite_router.get("/Surveillances/{level_name}")
+def get_data_for_level(level_name:str):
     engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
     Session = sessionmaker(bind=engine)
     session = Session()
 
     try:
-        level = session.query(Niveau).filter(Niveau.nom == level_name).first()
-        dep = session.query(Departement).filter(Departement.nom_departement == dep_name).first()
-        if (level and dep):
-            data = session.query(Surveillance.id,Surveillance.date_debut,Surveillance.date_fin,Surveillance.id_surv,Surveillance.id_sal,User.prenom,Salle.nom). \
-                join(Salle, Salle.id == Surveillance.id_sal). \
-                join(Surveillant, Surveillant.user_id == Surveillance.id_surv). \
-                join(User, Surveillant.user_id == User.id).\
-                join(Matiere, Matiere.id == Matiere.id). \
+        level = session.query(Filiere).filter(Filiere.libelle == level_name).first()
+        if level:
+            data = session.query(SurveillanceSuperviseur.id, SurveillanceSuperviseur.id_sup, SurveillanceSuperviseur.id_sal, SurveillanceSuperviseur.id_eval, User.prenom, User.nom,  Evaluation.type). \
+                join(Salle, Salle.id.in_(func.SUBSTRING_INDEX(SurveillanceSuperviseur.id_sal, ';', -1))). \
+                join(Evaluation, SurveillanceSuperviseur.id_eval == Evaluation.id). \
+                join(Matiere, Evaluation.id_mat == Matiere.id). \
+                join(Superviseur, Superviseur.user_id == SurveillanceSuperviseur.id_sup). \
+                join(User, Superviseur.user_id == User.id). \
                 join(Filiere, Filiere.id == Matiere.id_fil). \
-                join(Semestre, Semestre.id == Filiere.semestre_id). \
-                join(Niveau, Niveau.id == Semestre.niveau_id). \
-                filter(Niveau.id == level.id).all()
+                filter(Filiere.id == level.id, SurveillanceSuperviseur.id_sal != None).all()
 
-            # Convert the data to a JSON-serializable format
             json_data = []
-            for row in data:
+            
+            for row1 in data:
+                ids = row1.id_sal.split(';')
+                salles = session.query(Salle).filter(Salle.id.in_(ids)).all()
+                salle_noms = [salle.nom for salle in salles]
                 json_data.append({
-                   'id': row.id,
-                        'date_debut': row.date_debut, 
-                       'date_fin': row.date_fin,
-                       'id_surv': row.id_surv,
-                       'id_sal': row.id_sal,
-                       'superviseur': row.prenom, 
-                       'salle': row.nom,
+                    'id': row1.id,
+                    'id_sup': row1.id_sup,
+                    'id_sal': row1.id_sal,
+                    'id_eval': row1.id_eval,
+                    'superviseur': row1.prenom, 
+                    'evaluation':row1.type,
+                     'salle': salle_noms 
                 })
 
             return json_data
     finally:
         session.close()
-        
 
+        
+@scolarite_router.get('/pv/superviseur/{id}')
+async def get_pvs(id:int):
+    engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    salle_alias_1 = aliased(Salle)
+    salle_alias_2 = aliased(Salle)
+    
+    # Exécution de la requête
+# Exécution de la requête avec distinct()
+    data = session.query(PV.id,
+                        PV.nom,
+                        PV.photo,
+                        PV.description,
+                        PV.nni,
+                        PV.tel,
+                        PV.type,
+                        PV.etat,
+                        User.prenom,
+                        PV.date_pv). \
+        join(Evaluation, PV.id_eval == Evaluation.id). \
+        join(salle_alias_1, salle_alias_1.id.in_(func.SUBSTRING_INDEX(SurveillanceSuperviseur.id_sal, ';', -1))). \
+        join(SurveillanceSuperviseur, SurveillanceSuperviseur.id_eval == Evaluation.id). \
+        join(Superviseur, Superviseur.user_id == SurveillanceSuperviseur.id_sup). \
+        filter(and_(Superviseur.user_id==id,PV.etat=='initial')). \
+        group_by(PV.id)
+
+    # result = session.execute(query).fetchall()
+    results = []
+    for row in data:
+        nom_fichier = os.path.basename(row.photo)
+        result = {
+                  "id": row.id,
+                "nom": row.nom,
+                  "photo": nom_fichier,
+                  "description": row.description,
+                  "nni": row.nni,
+                  "tel": row.tel,
+                  "type":row.type,
+                  "etat":row.etat,
+                  "surveillant": row.prenom,
+                  "date_pv": row.date_pv,
+                  }  # Créez un dictionnaire avec la clé "nom" et la valeur correspondante
+        results.append(result)
+    
+    return results  
 # @scolarite_router.get("/superviseurs/")
 # def get_data_evaluations_for_level():
 #     engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")

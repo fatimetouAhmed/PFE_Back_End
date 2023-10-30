@@ -12,7 +12,7 @@ from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.orm import relationship, mapper, sessionmaker
 import os
 
-from sqlalchemy import  Column, Integer, ForeignKey
+from sqlalchemy import  Column, Integer, ForeignKey,create_engine
 from sqlalchemy.orm import relationship, mapper, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 import datetime
@@ -20,7 +20,7 @@ from config.db import con
 #from models.departement import Departements
 #from models.filiere import Filieres
 #from models.matiere import Matiere
-from models.anne import Etudiant,Matiere,Surveillance
+from models.anne import Etudiant,Matiere,SurveillanceSuperviseur
 #from models.etudiermat import Etudiant
 #from models.etudiermat import etudiermats
 #from models.etudiermat import Matiere
@@ -36,13 +36,12 @@ from models.anne import Etudiant ,Evaluation
 Base = declarative_base()
 
 # Create a session factory
-Session = sessionmaker(bind=con)
-# Create a session
+Session = sessionmaker(bind=create_engine("mysql+pymysql://root@localhost:3306/db_mobile3").connect())
 session = Session()
 
 
 
-Base.metadata.create_all(con)
+# Base.metadata.create_all(con)
 def get_etudiant(photo: str):
     # print(photo)
     # Retrieve the student's ID after verifying the image
@@ -54,15 +53,18 @@ async def get_infoexamun(imagepath,image1: str,id_etu:int,user_id: int = Depends
    
              #temps actuel
              now = datetime.now()
+             print("user",user_id)
              #filere de l'etudiant 
              fil=session.query(Etudiant.id_fil).filter(Etudiant.id == id_etu).all()
-             
+             print("etudiant",fil[0][0])
              #recuperation des matires de filiere de l'etudiant
              subquery = session.query(Matiere.id).filter(Matiere.id_fil == fil[0][0])
+             print("matiere",subquery[0][0])
              #recuperation de salle de surveillance de cette utilisateur a ce moment
-             salle=session.query(Surveillance.id_sal).filter(and_(now >= Surveillance.date_debut, now <= Surveillance.date_fin, Surveillance.id_surv==user_id)).all()
+            #  salle=session.query(SurveillanceSuperviseur.id_sal).filter(and_(now >= Surveillance.date_debut, now <= Surveillance.date_fin, Surveillance.id_surv==user_id)).all()
+             salle=session.query(SurveillanceSuperviseur.id_sal).all()
              print("sal",salle[0][0])
-             exams = session.query(Evaluation.id).filter(and_(now >= Evaluation.date_debut, now <= Evaluation.date_fin,Evaluation.id_sal==salle[0][0], Evaluation.id_mat.in_(subquery))).all()
+             exams = session.query(Evaluation.id).filter(and_(now >= Evaluation.date_debut, now <= Evaluation.date_fin,Evaluation.id_sal.in_(salle), Evaluation.id_mat.in_(subquery))).all()
              
              #timestamp = datetime.now().timestamp()
 

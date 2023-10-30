@@ -1,9 +1,9 @@
-from sqlalchemy import Table,Column,String,Integer,DateTime,ForeignKey,Boolean,DATETIME
+from sqlalchemy import Table,Column,String,Integer,DateTime,ForeignKey,Boolean,DATETIME,Time
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import  relationship
 
-from auth.authConfig import PV,User,Superviseur 
-from datetime import datetime
+from auth.authConfig import PV,User 
+from datetime import datetime,time
 
 Base = declarative_base()
 
@@ -22,28 +22,8 @@ class User(Base):
     surveillant = relationship("Surveillant", back_populates="user", uselist=False)
     administrateur = relationship("Administrateur", back_populates="user", uselist=False)
     superviseur = relationship("Superviseur", back_populates="user", uselist=False)
-class PV(Base):
-    __tablename__ = "pv"
 
-    id = Column(Integer, primary_key=True, index=True)
-    description = Column(String(255), nullable=True)
-    nni = Column(String(255), nullable=True)
-    surveillant_id = Column(Integer, ForeignKey("surveillants.user_id"))
-    photo = Column(String(255), nullable=True)
-    tel = Column(Integer, nullable=True)
-    date_pv = Column(DateTime, default=datetime.now)
-    surveillant = relationship("Surveillant", back_populates="pv")
 
-class Superviseur(Base):
-    __tablename__ = "superviseurs"
-
-    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
-    #sureveillant_id = Column(Integer, ForeignKey("surveillants.user_id"))
-    notification=relationship("Notifications", back_populates="superviseur", uselist=False)
-
-    user = relationship("User", back_populates="superviseur", uselist=False)
-    surveillant = relationship("Surveillant", back_populates="superviseur", uselist=False)
-    departement_superviseur = relationship("DepartementSuperviseurs", back_populates="superviseur", uselist=False)
 
     
 class DepartementSuperviseurs(Base):
@@ -127,6 +107,7 @@ class Etudiant(Base):
     matricule=Column(String(250))
     nom = Column(String(250))
     prenom = Column(String(250))
+    matricule = Column(String(250))
     photo = Column(String(250))
     nni = Column(Integer)
     genre = Column(String(250))
@@ -153,6 +134,10 @@ class Matiere(Base):
     id_fil = Column(Integer, ForeignKey("filiere.id"))
     filiere = relationship("Filiere", back_populates="matiere", uselist=False)
     evaluation=relationship("Evaluation", back_populates="matiere", uselist=False)
+    creneaujour = relationship("CreneauJours", back_populates="matiere", uselist=False)
+
+
+
 
 
 class Evaluation(Base):
@@ -164,41 +149,97 @@ class Evaluation(Base):
     date_fin  = Column(DateTime)
     id_sal = Column(Integer, ForeignKey("salles.id"))
     id_mat = Column(Integer, ForeignKey("matieres.id"))
+    id_jour = Column(Integer, ForeignKey("jours.id"))
     salle = relationship("Salle", back_populates="evaluation", uselist=False)
     matiere=relationship("Matiere", back_populates="evaluation", uselist=False)    
     historique=relationship("Historiques", back_populates="evaluation", uselist=False)
     notification=relationship("Notifications", back_populates="evaluation", uselist=False)
-class Salle(Base):
-    __tablename__ = 'salles'
-    id = Column(Integer, primary_key=True)
-    nom  = Column(String(255))
-    evaluation=relationship("Evaluation", back_populates="salle", uselist=False)
-    surveillance=relationship("Surveillance", back_populates="salle", uselist=False)
+    surveillancesuperviseur = relationship("SurveillanceSuperviseur", back_populates="evaluation", uselist=False)
+    pv = relationship("PV", back_populates="evaluation", uselist=False) 
+    jour = relationship("Jour", back_populates="evaluation", uselist=False)
+class Jour(Base):
+    __tablename__ = 'jours'
 
+    id = Column(Integer, primary_key=True)
+    libelle= Column(String(250))
+    date  = Column(DateTime)
+    evaluation = relationship("Evaluation", back_populates="jour")
+    creneaujour = relationship("CreneauJours", back_populates="jour", uselist=False)
+class CreneauJours(Base):
+    __tablename__ = 'creneau_jour'
+    id = Column(Integer, primary_key=True)
+    id_jour = Column(Integer, ForeignKey("jours.id"))
+    id_creneau= Column(Integer, ForeignKey("creneaux.id"))
+    id_mat= Column(Integer, ForeignKey("matieres.id"))
+    jour = relationship("Jour", back_populates="creneaujour", uselist=False)
+    creneau = relationship("Creneau", back_populates="creneaujour", uselist=False)
+    matiere = relationship("Matiere", back_populates="creneaujour", uselist=False)
+class Creneau(Base):
+    __tablename__ = 'creneaux'
+
+    id = Column(Integer, primary_key=True)
+    heure_debut= Column(Time)
+    heure_fin  = Column(Time)  
+    creneaujour = relationship("CreneauJours", back_populates="creneau", uselist=False)
 class Surveillant(Base):
     __tablename__ = "surveillants"
 
     #id = Column(Integer, pr
     # imary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
-    superviseur_id = Column(Integer, ForeignKey("superviseurs.user_id"))
+    # superviseur_id = Column(Integer, ForeignKey("superviseurs.user_id"))
+    id_sal=Column(Integer, ForeignKey("salles.id"))
     typecompte=Column(String(255), nullable=False,default="principale")
     user= relationship("User", back_populates="surveillant", uselist=False)
-    superviseur = relationship("Superviseur", back_populates="surveillant", uselist=False)
+    # superviseur = relationship("Superviseur", back_populates="surveillant", uselist=False)
+    salle = relationship("Salle", back_populates="surveillant", uselist=False)
     pv = relationship("PV", back_populates="surveillant", uselist=False)
-    surveillance = relationship("Surveillance", back_populates="surveillant", uselist=False)
+    notification=relationship("Notifications", back_populates="surveillant", uselist=False)
+class PV(Base):
+    __tablename__ = "pv"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nom = Column(String(255), nullable=True)
+    description = Column(String(255), nullable=True)
+    nni = Column(String(255), nullable=True)
+    surveillant_id = Column(Integer, ForeignKey("surveillants.user_id"))
+    photo = Column(String(255), nullable=True)
+    tel = Column(Integer, nullable=True)
+    type = Column(String(255), nullable=True)
+    date_pv = Column(DateTime, default=datetime.now)  # Ajout du champ type
+    etat = Column(String(50), nullable=True)
+    id_eval = Column(Integer, ForeignKey("evaluation.id"))
+    surveillant = relationship("Surveillant", back_populates="pv")
+    evaluation = relationship("Evaluation", back_populates="pv")
 
 
-
-class Surveillance(Base):
-    __tablename__ = 'surveillances'
+class Salle(Base):
+    __tablename__ = 'salles'
     id = Column(Integer, primary_key=True)
+    nom  = Column(String(255))
+    surveillant = relationship("Surveillant", back_populates="salle", uselist=False)
+    evaluation=relationship("Evaluation", back_populates="salle", uselist=False)
+    surveillancesuperviseur=relationship("SurveillanceSuperviseur", back_populates="salle", uselist=False)
+
+class Superviseur(Base):
+    __tablename__ = "superviseurs"
+
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    #sureveillant_id = Column(Integer, ForeignKey("surveillants.user_id"))
+
+    user = relationship("User", back_populates="superviseur", uselist=False)
+    # surveillant = relationship("Surveillant", back_populates="superviseur", uselist=False)
+    departement_superviseur = relationship("DepartementSuperviseurs", back_populates="superviseur", uselist=False)
+    surveillancesuperviseur = relationship("SurveillanceSuperviseur", back_populates="superviseur", uselist=False)
+class SurveillanceSuperviseur(Base):
+    __tablename__ = 'surveillancesuperviseur'
+    id = Column(Integer, primary_key=True)
+    id_sup = Column(Integer, ForeignKey("superviseurs.user_id"))
     id_sal = Column(Integer, ForeignKey("salles.id"))
-    id_surv = Column(Integer, ForeignKey("surveillants.user_id"))
-    date_debut  = Column(DateTime)
-    date_fin  = Column(DateTime)
-    salle = relationship("Salle", back_populates="surveillance", uselist=False)
-    surveillant=relationship("Surveillant", back_populates="surveillance", uselist=False)
+    id_eval = Column(Integer, ForeignKey("evaluation.id"))
+    salle = relationship("Salle", back_populates="surveillancesuperviseur", uselist=False)
+    superviseur=relationship("Superviseur", back_populates="surveillancesuperviseur", uselist=False)
+    evaluation=relationship("Evaluation", back_populates="surveillancesuperviseur", uselist=False)
 class Historiques(Base):
     __tablename__ = 'historiques'
 
@@ -212,12 +253,12 @@ class Notifications(Base):
     id = Column(Integer, primary_key=True)
     content = Column(String(255))
     date = Column(DATETIME,default=datetime.now)
-    superviseur_id = Column(Integer, ForeignKey('superviseurs.user_id'))
+    surveillant_id = Column(Integer, ForeignKey('surveillants.user_id'))
     is_read = Column(Boolean)
     id_exam = Column(Integer, ForeignKey('evaluation.id'))
     image = Column(String(255))
     evaluation=relationship("Evaluation", back_populates="notification", uselist=False)
-    superviseur=relationship("Superviseur", back_populates="notification", uselist=False)
+    surveillant=relationship("Surveillant", back_populates="notification", uselist=False)
 
 
     # examuns = relationship("Examuns", primaryjoin="Notifications.id_exam == examuns.id")

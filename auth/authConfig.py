@@ -18,7 +18,7 @@ from sqlalchemy.orm import sessionmaker, relationship, Session
 from fastapi import FastAPI, File, UploadFile
 from datetime import datetime
 user_router=APIRouter()
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=con)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=create_engine("mysql+pymysql://root@localhost:3306/db_mobile3"))
 # Create a session
 #Base = declarative_base()
 Base = declarative_base()
@@ -56,41 +56,84 @@ class Administrateur(Base):
     user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
     user = relationship("User", back_populates="administrateur", uselist=False)
 
-
 # ...
+class Superviseur(Base):
+    __tablename__ = "superviseurs"
+
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    #sureveillant_id = Column(Integer, ForeignKey("surveillants.user_id"))
+    # notification=relationship("Notifications", back_populates="superviseur", uselist=False)
+
+    user = relationship("User", back_populates="superviseur", uselist=False)
+    # surveillant = relationship("Surveillant", back_populates="superviseur", uselist=False)
+
+    surveillancesuperviseur = relationship("SurveillanceSuperviseur", back_populates="superviseur", uselist=False)
+
+class Evaluation(Base):
+    __tablename__ = 'evaluation'
+
+    id = Column(Integer, primary_key=True)
+    type = Column(String(250))
+    date_debut  = Column(DateTime)
+    date_fin  = Column(DateTime)
+    id_sal = Column(Integer, ForeignKey("salles.id"))
+    id_mat = Column(Integer, ForeignKey("matieres.id"))
+    salle = relationship("Salle", back_populates="evaluation", uselist=False)
+    # matiere=relationship("Matiere", back_populates="evaluation", uselist=False)    
+    # historique=relationship("Historiques", back_populates="evaluation", uselist=False)
+    # notification=relationship("Notifications", back_populates="evaluation", uselist=False)
+    surveillancesuperviseur = relationship("SurveillanceSuperviseur", back_populates="evaluation", uselist=False)
+    pv = relationship("PV", back_populates="evaluation", uselist=False) 
 class Surveillant(Base):
     __tablename__ = "surveillants"
 
     #id = Column(Integer, pr
     # imary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
-    superviseur_id = Column(Integer, ForeignKey("superviseurs.user_id"))
+    # superviseur_id = Column(Integer, ForeignKey("superviseurs.user_id"))
+    id_sal=Column(Integer, ForeignKey("salles.id"))
     typecompte=Column(String(255), nullable=False,default="principale")
     user= relationship("User", back_populates="surveillant", uselist=False)
-    superviseur = relationship("Superviseur", back_populates="surveillant", uselist=False)
+    # superviseur = relationship("Superviseur", back_populates="surveillant", uselist=False)
+    salle = relationship("Salle", back_populates="surveillant", uselist=False)
     pv = relationship("PV", back_populates="surveillant", uselist=False)
 
+class Salle(Base):
+    __tablename__ = 'salles'
+    id = Column(Integer, primary_key=True)
+    nom  = Column(String(255))
+    surveillant = relationship("Surveillant", back_populates="salle", uselist=False)
+    evaluation=relationship("Evaluation", back_populates="salle", uselist=False)
+    surveillancesuperviseur=relationship("SurveillanceSuperviseur", back_populates="salle", uselist=False)
+
+
+class SurveillanceSuperviseur(Base):
+    __tablename__ = 'surveillancesuperviseur'
+    id = Column(Integer, primary_key=True)
+    id_sup = Column(Integer, ForeignKey("superviseurs.user_id"))
+    id_sal = Column(Integer, ForeignKey("salles.id"))
+    id_eval = Column(Integer, ForeignKey("evaluation.id"))
+    salle = relationship("Salle", back_populates="surveillancesuperviseur", uselist=False)
+    superviseur=relationship("Superviseur", back_populates="surveillancesuperviseur", uselist=False)
+    evaluation=relationship("Evaluation", back_populates="surveillancesuperviseur", uselist=False)
 
 class PV(Base):
     __tablename__ = "pv"
 
     id = Column(Integer, primary_key=True, index=True)
+    nom = Column(String(255), nullable=True)
     description = Column(String(255), nullable=True)
     nni = Column(String(255), nullable=True)
     surveillant_id = Column(Integer, ForeignKey("surveillants.user_id"))
     photo = Column(String(255), nullable=True)
     tel = Column(Integer, nullable=True)
+    type = Column(String(255), nullable=True)
     date_pv = Column(DateTime, default=datetime.now)
+    etat = Column(String(50), nullable=True)
+    id_eval = Column(Integer, ForeignKey("evaluation.id"))
     surveillant = relationship("Surveillant", back_populates="pv")
+    evaluation = relationship("Evaluation", back_populates="pv")
 
-class Superviseur(Base):
-    __tablename__ = "superviseurs"
-
-    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
-    #sureveillant_id = Column(Integer, ForeignKey("surveillants.user_id"))
-
-    user = relationship("User", back_populates="superviseur", uselist=False)
-    surveillant = relationship("Surveillant", back_populates="superviseur", uselist=False)
 
 app = FastAPI()
 class TokenValidationException(HTTPException):
@@ -104,8 +147,7 @@ class UserCreate(BaseModel):
     pswd: str
     role: str
     photo:str
-    superviseur_id:int
-        # Optional[int] = None  # Champ superviseur_id optionnel
+    id_sal:int
 
 class UserResponse(BaseModel):
     id: int
@@ -128,7 +170,7 @@ async def create_user(
     email: str = Form(...),
     pswd: str = Form(...),
     role: str = Form(...),
-    superviseur_id: int = Form(...),
+    id_sal: int = Form(...),
     file: UploadFile = File(...), db: Session = Depends(get_db)):
     
     try:
@@ -167,8 +209,8 @@ async def create_user(
             db.commit()
             db.refresh(admin)
         elif role == "surveillant":
-            superviseur_id = superviseur_id  # Récupération du superviseur_id depuis user
-            surveillant = Surveillant(user_id=db_user.id, superviseur_id=superviseur_id)  # Utilisation du superviseur_id lors de la création du surveillant
+            id_sal = id_sal  # Récupération du superviseur_id depuis user
+            surveillant = Surveillant(user_id=db_user.id, id_sal=id_sal)  # Utilisation du superviseur_id lors de la création du surveillant
             db.add(surveillant)
             db.commit()
             db.refresh(surveillant)
@@ -370,7 +412,7 @@ async def read_data_users_by_id(id:int):
         }
         results.append(result)
     return results
-async def superviseur_id(nom:str,user: User = Depends(check_Adminpermissions)):
+async def superviseur_id(nom:str):
     # Créer une session
     Session = sessionmaker(bind=con)
     session = Session()
@@ -405,7 +447,7 @@ async def update_data(
     email: str = Form(...),
     pswd: str = Form(...),
     role: str = Form(...),
-    superviseur_id: int = Form(...),
+    id_sal: int = Form(...),
     file: UploadFile = File(...),):
     Session = sessionmaker(bind=con)
     session = Session()

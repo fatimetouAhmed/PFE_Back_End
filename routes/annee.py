@@ -4,8 +4,8 @@ from datetime import datetime
 # from auth.authConfig import create_user,UserResponse,UserCreate,get_db,authenticate_user,create_access_token,ACCESS_TOKEN_EXPIRE_MINUTES,check_Adminpermissions,check_superviseurpermissions,check_survpermissions,User
 from config.db import con
 import os
-from sqlalchemy import create_engine
-from models.anne import Annees,Departement,Formation,Niveau,Annedep,Filiere,Matiere,Etudiant,Salle,Surveillance,Semestre
+from sqlalchemy import create_engine,and_,outerjoin,or_
+from models.anne import Annees,Departement,Formation,Niveau,Annedep,Filiere,Matiere,Etudiant,Salle,SurveillanceSuperviseur,Semestre,Evaluation
 annee_router=APIRouter()
 @annee_router.get("/")
 async def read_data():
@@ -118,6 +118,36 @@ async def read_data_by_id(nom:str,):
         results.append(result)
     
     return results
+@annee_router.get("/semestres/{nom}")
+async def read_data_by_id(nom:str,):
+    Session = sessionmaker(bind=con)
+    session = Session()
+
+    # Effectuer la requête pour récupérer les étudiants avec leurs matières
+    result_proxy = session.query(Semestre.libelle)\
+               .join(Niveau, Niveau.id == Semestre.niveau_id)\
+               .filter(Niveau.nom==nom)
+    results = []
+    for row in result_proxy:
+        result = row.libelle # Correction: Removed curly braces {}
+        results.append(result)
+    
+    return results
+@annee_router.get("/filieres/{nom}")
+async def read_data_by_id(nom:str,):
+    Session = sessionmaker(bind=con)
+    session = Session()
+
+    # Effectuer la requête pour récupérer les étudiants avec leurs matières
+    result_proxy = session.query(Filiere.libelle)\
+               .join(Semestre, Semestre.id == Filiere.semestre_id)\
+               .filter(Semestre.libelle==nom)
+    results = []
+    for row in result_proxy:
+        result = row.libelle # Correction: Removed curly braces {}
+        results.append(result)
+    
+    return results
 @annee_router.get("/informations")
 def get_data_for_level():
     Session = sessionmaker(bind=create_engine("mysql+pymysql://root@localhost:3306/db_mobile3").connect())
@@ -157,14 +187,12 @@ def get_data_etudiants_for_level(level_name:str):
     try:
         Session = sessionmaker(bind=create_engine("mysql+pymysql://root@localhost:3306/db_mobile3").connect())
         session = Session()
-        level = session.query(Niveau).filter(Niveau.nom == level_name).first()
+        level = session.query(Filiere).filter(Filiere.libelle == level_name).first()
 
         if level:
-            data = session.query(Etudiant). \
+            data = session.query(Etudiant.id,Etudiant.nom,Etudiant.prenom,Etudiant.photo,Etudiant.matricule,Etudiant.genre,Etudiant.date_n,Etudiant.date_inscription,Etudiant.lieu_n,Etudiant.email,Etudiant.tel,Etudiant.nationnalite,Etudiant.id_fil,Filiere.libelle). \
                 join(Filiere, Filiere.id == Etudiant.id_fil). \
-                join(Semestre, Semestre.id == Filiere.semestre_id). \
-                join(Matiere, Matiere.id_fil == Filiere.id). \
-                filter(Semestre.niveau_id == level.id).all()
+                filter(Filiere.id == level.id).all()
 
             results = []
             for row in data:
@@ -174,6 +202,7 @@ def get_data_etudiants_for_level(level_name:str):
                         "nom": row.nom,
                         "prenom": row.prenom,
                         "photo": nom_fichier,
+                        "matricule": row.matricule,
                         "genre": row.genre,
                         "date_N": row.date_n,
                         "lieu_n": row.lieu_n,
@@ -181,7 +210,8 @@ def get_data_etudiants_for_level(level_name:str):
                         "telephone": row.tel,
                         "nationalite": row.nationnalite,
                         "date_insecription": row.date_inscription,
-                        "id_fil":row.id_fil
+                        "id_fil":row.id_fil,
+                         "filiere":row.libelle
                 }
                 results.append(result)
             
@@ -200,14 +230,12 @@ def get_data_etudiants_for_level(level_name:str,id:int):
     try:
         Session = sessionmaker(bind=create_engine("mysql+pymysql://root@localhost:3306/db_mobile3").connect())
         session = Session()
-        level = session.query(Niveau).filter(Niveau.nom == level_name).first()
+        level = session.query(Filiere).filter(Filiere.libelle == level_name).first()
 
         if level:
-            data = session.query(Etudiant). \
+            data = session.query(Etudiant.id,Etudiant.nom,Etudiant.prenom,Etudiant.photo,Etudiant.matricule,Etudiant.genre,Etudiant.date_n,Etudiant.date_inscription,Etudiant.lieu_n,Etudiant.email,Etudiant.tel,Etudiant.nationnalite,Etudiant.id_fil,Filiere.libelle). \
                 join(Filiere, Filiere.id == Etudiant.id_fil). \
-                join(Semestre, Semestre.id == Filiere.semestre_id). \
-                join(Matiere, Matiere.id_fil == Filiere.id). \
-                filter(Semestre.niveau_id == level.id and Etudiant.id==id).all()
+                filter(Etudiant.id==id).all()
 
             results = []
             for row in data:
@@ -217,6 +245,7 @@ def get_data_etudiants_for_level(level_name:str,id:int):
                         "nom": row.nom,
                         "prenom": row.prenom,
                         "photo": nom_fichier,
+                        "matricule": row.matricule,
                         "genre": row.genre,
                         "date_N": row.date_n,
                         "lieu_n": row.lieu_n,
@@ -224,7 +253,8 @@ def get_data_etudiants_for_level(level_name:str,id:int):
                         "telephone": row.tel,
                         "nationalite": row.nationnalite,
                         "date_insecription": row.date_inscription,
-                        "id_fil":row.id_fil
+                        "id_fil":row.id_fil,
+                         "filiere":row.libelle
                 }
                 results.append(result)
             
@@ -242,13 +272,12 @@ def get_data_matieres_for_level(level_name:str):
     Session = sessionmaker(bind=create_engine("mysql+pymysql://root@localhost:3306/db_mobile3").connect())
     session = Session()
     try:
-        level = session.query(Niveau).filter(Niveau.nom == level_name).first()
+        level = session.query(Filiere).filter(Filiere.libelle == level_name).first()
 
         if level:
             data = session.query(Matiere.id, Matiere.libelle, Matiere.nbr_heure, Matiere.credit, Filiere.libelle.label('filiere')). \
                 join(Filiere, Filiere.id == Matiere.id_fil). \
-                join(Semestre, Semestre.id == Filiere.semestre_id). \
-                filter(Semestre.niveau_id == level.id).all()
+                filter(Filiere.id == level.id).all()
 
 
         results = []
@@ -271,13 +300,12 @@ def get_data_matieres_for_level(level_name:str,id:int):
     Session = sessionmaker(bind=create_engine("mysql+pymysql://root@localhost:3306/db_mobile3").connect())
     session = Session()
     try:
-        level = session.query(Niveau).filter(Niveau.nom == level_name).first()
+        level = session.query(Filiere).filter(Filiere.libelle == level_name).first()
 
         if level:
             data = session.query(Matiere.id, Matiere.libelle, Matiere.nbr_heure, Matiere.credit, Filiere.libelle.label('filiere')). \
                 join(Filiere, Filiere.id == Matiere.id_fil). \
-                join(Semestre, Semestre.id == Filiere.semestre_id). \
-                filter(Semestre.niveau_id == level.id and Matiere.id==id).all()
+                filter(Filiere.id == level.id and Matiere.id==id).all()
 
 
         results = []
@@ -297,12 +325,32 @@ def get_data_matieres_for_level(level_name:str,id:int):
         session.close()
 @annee_router.get("/salles/")
 async def read_data():
-    query = Salle.__table__.select()
-    result_proxy = con.execute(query)   
-    results = []
-    for row in result_proxy:
-        result = {"id": row.id,
-                  "nom": row.nom}  # Créez un dictionnaire avec la clé "nom" et la valeur correspondante
-        results.append(result)
-    
-    return results
+    Session = sessionmaker(bind=create_engine("mysql+pymysql://root@localhost:3306/db_mobile3").connect())
+    session = Session()
+    try:
+        now = datetime.now()
+        subquery = session.query(Salle.nom.distinct().label('nom')).subquery()
+        data = session.query(Salle.id, Salle.nom, Evaluation.date_debut, Evaluation.date_fin). \
+            join(subquery, subquery.c.nom == Salle.nom). \
+            outerjoin(Evaluation, Salle.id == Evaluation.id_sal).all()
+
+        # Utiliser un ensemble pour stocker les noms des salles uniques
+        unique_salle_noms = set()
+
+        results = []
+
+        for row in data:
+            nom = row.nom.strip().lower()  # Convertir en minuscules
+            has_surveillance = (
+                row.date_debut is not None and 
+                row.date_debut < now and 
+                row.date_fin > now
+            )
+            if not has_surveillance and nom not in unique_salle_noms:
+                result = {"nom": nom}
+                results.append(result)
+                unique_salle_noms.add(nom)
+
+        return [{"nom": nom} for nom in unique_salle_noms]
+    finally:
+        session.close()

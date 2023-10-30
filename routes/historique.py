@@ -4,7 +4,7 @@ from config.db import con
 from sqlalchemy.orm import selectinload,joinedload,sessionmaker
 from sqlalchemy import select, literal_column,column,and_
 from datetime import datetime
-from models.anne import Evaluation,Salle,Historiques,Surveillance,Notifications,Matiere,Etudiant
+from models.anne import Evaluation,Salle,Historiques,SurveillanceSuperviseur,Notifications,Matiere,Etudiant
 #from models.anne import Evaluation,salles,historiques,Surveillance,notifications,Matiere
 
 
@@ -17,12 +17,14 @@ async def write_data_case_etudiant(image1: str, id_etu: int, user_id: int = Depe
     matiere_examun = []
     etudiant = []
     a = 0
-    print("image", image1)
-    print("id_etu", id_etu)
-    print("user_id", user_id)
+    # print("image", image1)
+    # print("id_etu", id_etu)
+    # print("user_id", user_id)
     Session = sessionmaker(bind=con)
     session = Session()
-    salle_query = session.query(Surveillance.id_sal).filter(and_(date >= Surveillance.date_debut, date <= Surveillance.date_fin, Surveillance.id_surv == user_id))
+    # salle_query = session.query(Surveillance.id_sal).filter(and_(date >= Surveillance.date_debut, date <= Surveillance.date_fin, Surveillance.id_surv == user_id))
+    salle_query = session.query(SurveillanceSuperviseur.id_sal).filter( SurveillanceSuperviseur == user_id)
+    
     salle = salle_query.all()
 
     if salle:
@@ -43,12 +45,12 @@ async def write_data_case_etudiant(image1: str, id_etu: int, user_id: int = Depe
         salle.append(result)
         print(result)
         q3 = session.query(Matiere.libelle).join(Evaluation).filter(Evaluation.id_mat == a)
-        r3 = q3.all()
+        r3 = q3.all()            
         for row2 in r3:
-            result = {
-                "libelle": row2[0],
-            }
-            matiere_examun.append(result)
+                result = {
+                    "libelle": row2[0],
+                }
+                matiere_examun.append(result)
 
         q4 = session.query(Etudiant.id, Etudiant.nom, Etudiant.prenom).filter(Etudiant.id == id_etu)
         r4 = q4.all()
@@ -64,7 +66,7 @@ async def write_data_case_etudiant(image1: str, id_etu: int, user_id: int = Depe
         r5 = q5.all()
         for row0 in r5:
             id_super = row0[0]
-
+       
     print("id_super")
 
     description = "Attention étudiant " + str(row1[1]) + " " + str(row1[2]) + " n'a pas d'examen en ce moment "+\
@@ -101,7 +103,7 @@ async def write_data(image1:str,user_id: int = Depends(recupere_userid),user: Us
     a = 0
     Session = sessionmaker(bind=con)
     session = Session()
-    q1 = select(column('id_sal')).select_from(Surveillance).where(Surveillance.id_surv == surveillant and Surveillance.date_debut<=date and Surveillance.date_fin>=date)
+    q1 = select(column('id_sal')).select_from(SurveillanceSuperviseur).where(SurveillanceSuperviseur.id_sup == surveillant )
     r1 = con.execute(q1)
     for row1 in r1:
         id_sal = row1[0]
