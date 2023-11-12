@@ -94,6 +94,7 @@ class Filiere(Base):
     __tablename__ = 'filiere'
     id = Column(Integer, primary_key=True)
     libelle  = Column(String(255))
+    abreviation  = Column(String(255))
     semestre_id=Column(Integer, ForeignKey("semestre.id"))
     etudiant= relationship("Etudiant", back_populates="filiere", uselist=False)
     semestre= relationship("Semestre", back_populates="filiere", uselist=False)

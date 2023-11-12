@@ -94,7 +94,7 @@ async def get_salles(id:int):
         join(SurveillanceSuperviseur, SurveillanceSuperviseur.id_eval == Evaluation.id). \
         join(Surveillant, Surveillant.id_sal == Salle.id). \
         join(User, User.id == Surveillant.user_id). \
-        filter(Superviseur.user_id == id)
+        filter(Superviseur.user_id == id).group_by(Salle.nom)
 
     results = []
     for row in data:

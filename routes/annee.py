@@ -190,7 +190,7 @@ def get_data_etudiants_for_level(level_name:str):
         level = session.query(Filiere).filter(Filiere.libelle == level_name).first()
 
         if level:
-            data = session.query(Etudiant.id,Etudiant.nom,Etudiant.prenom,Etudiant.photo,Etudiant.matricule,Etudiant.genre,Etudiant.date_n,Etudiant.date_inscription,Etudiant.lieu_n,Etudiant.email,Etudiant.tel,Etudiant.nationnalite,Etudiant.id_fil,Filiere.libelle). \
+            data = session.query(Etudiant.id,Etudiant.nom,Etudiant.prenom,Etudiant.photo,Etudiant.matricule,Etudiant.genre,Etudiant.date_n,Etudiant.date_inscription,Etudiant.lieu_n,Etudiant.email,Etudiant.tel,Etudiant.nationnalite,Etudiant.id_fil,Filiere.abreviation). \
                 join(Filiere, Filiere.id == Etudiant.id_fil). \
                 filter(Filiere.id == level.id).all()
 
@@ -211,7 +211,7 @@ def get_data_etudiants_for_level(level_name:str):
                         "nationalite": row.nationnalite,
                         "date_insecription": row.date_inscription,
                         "id_fil":row.id_fil,
-                         "filiere":row.libelle
+                         "filiere":row.abreviation
                 }
                 results.append(result)
             
@@ -233,7 +233,7 @@ def get_data_etudiants_for_level(level_name:str,id:int):
         level = session.query(Filiere).filter(Filiere.libelle == level_name).first()
 
         if level:
-            data = session.query(Etudiant.id,Etudiant.nom,Etudiant.prenom,Etudiant.photo,Etudiant.matricule,Etudiant.genre,Etudiant.date_n,Etudiant.date_inscription,Etudiant.lieu_n,Etudiant.email,Etudiant.tel,Etudiant.nationnalite,Etudiant.id_fil,Filiere.libelle). \
+            data = session.query(Etudiant.id,Etudiant.nom,Etudiant.prenom,Etudiant.photo,Etudiant.matricule,Etudiant.genre,Etudiant.date_n,Etudiant.date_inscription,Etudiant.lieu_n,Etudiant.email,Etudiant.tel,Etudiant.nationnalite,Etudiant.id_fil,Filiere.abreviation). \
                 join(Filiere, Filiere.id == Etudiant.id_fil). \
                 filter(Etudiant.id==id).all()
 
@@ -254,7 +254,7 @@ def get_data_etudiants_for_level(level_name:str,id:int):
                         "nationalite": row.nationnalite,
                         "date_insecription": row.date_inscription,
                         "id_fil":row.id_fil,
-                         "filiere":row.libelle
+                         "filiere":row.abreviation
                 }
                 results.append(result)
             
@@ -275,7 +275,7 @@ def get_data_matieres_for_level(level_name:str):
         level = session.query(Filiere).filter(Filiere.libelle == level_name).first()
 
         if level:
-            data = session.query(Matiere.id, Matiere.libelle, Matiere.nbr_heure, Matiere.credit, Filiere.libelle.label('filiere')). \
+            data = session.query(Matiere.id, Matiere.libelle, Matiere.nbr_heure, Matiere.credit, Filiere.abreviation.label('filiere')). \
                 join(Filiere, Filiere.id == Matiere.id_fil). \
                 filter(Filiere.id == level.id).all()
 

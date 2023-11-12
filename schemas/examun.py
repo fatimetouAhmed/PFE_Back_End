@@ -6,3 +6,4 @@ class Evaluations(BaseModel):
    date_fin:datetime
    id_mat:int
    id_sal:int
+   id_jour:int

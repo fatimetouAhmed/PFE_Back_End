@@ -10,7 +10,7 @@ from sqlalchemy import and_,select,update,delete
 from sqlalchemy import create_engine
 from sqlalchemy import func
 from schemas.examun import Evaluations
-from models.anne import Annees,Departement,Formation,PV,DepartementSuperviseurs,Niveau,Historiques,Annedep,SurveillanceSuperviseur,Filiere,Matiere,Etudiant,Salle,Semestre,Evaluation,Superviseur,Surveillant,User
+from models.anne import Annees,Departement,Formation,PV,DepartementSuperviseurs,Niveau,Historiques,Annedep,SurveillanceSuperviseur,Filiere,Jour,Matiere,Etudiant,Salle,Semestre,Evaluation,Superviseur,Surveillant,User
 scolarite_router=APIRouter()      
 @scolarite_router.get("/evaluations/{level_name}")
 def get_data_evaluations_for_level(level_name:str):
@@ -21,8 +21,9 @@ def get_data_evaluations_for_level(level_name:str):
         level = session.query(Filiere).filter(Filiere.libelle == level_name).first()
         # dep = session.query(Departement).filter(Departement.nom_departement == dep_name).first()
         if (level):
-            data = session.query(Evaluation.id,Evaluation.type,Evaluation.date_debut,Evaluation.date_fin,Evaluation.id_mat,Evaluation.id_sal,Matiere.libelle, Salle.nom). \
+            data = session.query(Evaluation.id,Evaluation.type,Evaluation.date_debut,Evaluation.date_fin,Evaluation.id_mat,Evaluation.id_sal,Evaluation.id_jour,Matiere.libelle, Salle.nom,Jour.libelle.label('jour')). \
                 join(Matiere, Matiere.id == Evaluation.id_mat).\
+                join(Jour, Jour.id == Evaluation.id_jour).\
                 join(Salle, Salle.id == Evaluation.id_sal).\
                 join(Filiere, Filiere.id == Matiere.id_fil). \
                 filter(Filiere.id == level.id).all()
@@ -35,8 +36,10 @@ def get_data_evaluations_for_level(level_name:str):
                         "heure_fin": row.date_fin,
                         "id_mat": row.id_mat,
                         "id_sal": row.id_sal,
+                        "id_jour": row.id_jour,
                         "matiere": row.libelle,
                             "salle": row.nom,
+                            "jour": row.jour,
                         }  # Créez un dictionnaire avec la clé "nom" et la valeur correspondante
                 results.append(result)
             
@@ -68,17 +71,34 @@ def get_data_matieres_for_level(level_name:str):
         session.close()
 
 @scolarite_router.get("/salles/")
+async def read_data_users():
+    engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    result_proxy = session.query(Salle.id, Salle.nom).all()
+
+    results = []
+    for row in result_proxy:
+        result = {
+            "id": row.id,
+            "nom": row.nom
+        }
+        results.append(result)
+    return results
+        
+@scolarite_router.get("/sal")
 def get_data_salles_for_level():
     engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
     Session = sessionmaker(bind=engine)
     session = Session()
     try:
         
-            data = session.query(Salle.nom).all()
+            data = session.query(Salle.id,Salle.nom).all()
             
             results = []
             for row in data:
                 result = {
+                    "id":row.id,
                         "nom": row.nom
                         }  # Créez un dictionnaire avec la clé "nom" et la valeur correspondante
                 results.append(result)
@@ -86,6 +106,7 @@ def get_data_salles_for_level():
             return results
     finally:
         session.close()
+
 
 @scolarite_router.post("/")
 async def write_data(evaluation:Evaluations):
@@ -98,6 +119,7 @@ async def write_data(evaluation:Evaluations):
         date_fin=evaluation.date_fin,  # Correction ici
         id_sal=evaluation.id_sal,
         id_mat=evaluation.id_mat,
+        id_jour=evaluation.id_jour,
        )
     session.add(eval)
     session.commit()
@@ -119,6 +141,7 @@ async def update_data(id:int,evaluation:Evaluations,):
         date_fin=evaluation.date_fin,  # Correction ici
         id_sal=evaluation.id_sal,
         id_mat=evaluation.id_mat,
+         id_jour=evaluation.id_jour,
            )
 
         # Execute the update statement
@@ -193,7 +216,7 @@ async def get_pvs():
                     PV.photo,
                    PV.description,
                    PV.nni,
-                    PV.tel,PV.etat,
+                    PV.tel,PV.type,PV.etat,
                    User.prenom,PV.date_pv). \
       join(Surveillant, PV.surveillant_id == Surveillant.user_id). \
             join(User, Surveillant.user_id == User.id)
@@ -209,6 +232,7 @@ async def get_pvs():
                   "description": row.description,
                   "nni": row.nni,
                   "tel": row.tel,
+                "type": row.type,
                   "etat": row.etat,
                   "surveillant": row.prenom,
                   "date_pv": row.date_pv,
@@ -228,7 +252,38 @@ async def update_data(id:int):
         etat='refuser'
     ).where(PV.__table__.c.id==id))
     return "Succees"
+@scolarite_router.get("/jours")
+def get_data_matieres_for_level():
+    engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    try:
+    
+            data = session.query(Jour.libelle).all()
+            
+            results = []
+            for row in data:
+                result = {
+                        "libelle": row.libelle
+                        }  # Créez un dictionnaire avec la clé "nom" et la valeur correspondante
+                results.append(result)
+            
+            return results
+    finally:
+        session.close()
+@scolarite_router.get("/jour/{nom}")
+async def salle_id(nom:str):
+    Session = sessionmaker(bind=con)
+    session = Session()
 
+    # Effectuer la requête pour récupérer les filières avec leurs départements
+    jours = session.query(Jour).filter(Jour.libelle== nom).all()
+     
+    # Parcourir les filières et récupérer leurs départements associés
+    id=0
+    for jour in jours:
+        id=jour.id   
+    return id
 @scolarite_router.get("/salle/{nom}")
 async def salle_id(nom:str):
     Session = sessionmaker(bind=con)

@@ -32,7 +32,7 @@ from routes.historique import write_data_case_etudiant
 from fastapi import APIRouter,Depends
 from auth.authConfig import recupere_userid,create_user,UserResponse,UserCreate,get_db,authenticate_user,create_access_token,ACCESS_TOKEN_EXPIRE_MINUTES,check_Adminpermissions,check_superviseurpermissions,check_survpermissions,User
 from datetime import datetime, timedelta
-from models.anne import Etudiant ,Evaluation
+from models.anne import Etudiant ,Evaluation,Surveillant
 Base = declarative_base()
 
 # Create a session factory
@@ -47,24 +47,27 @@ def get_etudiant(photo: str):
     # Retrieve the student's ID after verifying the image
     etudiants = session.query(Etudiant.id).filter(Etudiant.photo == photo).all()
     id_etu = etudiants[0][0]
-    print(id_etu)
+    # print(id_etu)
     return  id_etu
 async def get_infoexamun(imagepath,image1: str,id_etu:int,user_id: int = Depends(recupere_userid),user: User = Depends(check_survpermissions)):
-   
-             #temps actuel
+             engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
+             Session = sessionmaker(bind=engine)
+             session = Session()
+  #temps actuel
              now = datetime.now()
-             print("user",user_id)
+            #  print("user",user_id)
              #filere de l'etudiant 
              fil=session.query(Etudiant.id_fil).filter(Etudiant.id == id_etu).all()
              print("etudiant",fil[0][0])
              #recuperation des matires de filiere de l'etudiant
              subquery = session.query(Matiere.id).filter(Matiere.id_fil == fil[0][0])
-             print("matiere",subquery[0][0])
+             print("matiere",subquery)
              #recuperation de salle de surveillance de cette utilisateur a ce moment
             #  salle=session.query(SurveillanceSuperviseur.id_sal).filter(and_(now >= Surveillance.date_debut, now <= Surveillance.date_fin, Surveillance.id_surv==user_id)).all()
-             salle=session.query(SurveillanceSuperviseur.id_sal).all()
-             print("sal",salle[0][0])
-             exams = session.query(Evaluation.id).filter(and_(now >= Evaluation.date_debut, now <= Evaluation.date_fin,Evaluation.id_sal.in_(salle), Evaluation.id_mat.in_(subquery))).all()
+             salle=session.query(Surveillant.id_sal).filter(Surveillant.user_id==user_id).all()
+            #  id_sal=salle[0][0]
+             
+             exams = session.query(Evaluation.id,Evaluation.id_sal).filter(and_(now >= Evaluation.date_debut, now <= Evaluation.date_fin,Evaluation.id_mat.in_(subquery))).all()
              
              #timestamp = datetime.now().timestamp()
 
@@ -81,7 +84,12 @@ async def get_infoexamun(imagepath,image1: str,id_etu:int,user_id: int = Depends
    
                        #return "pas d'examen a ce moment"
                        return await write_data_case_etudiant(image_etu_path,id_etu, user_id, user)
-             else:   
-                   return "Rentrez"
+             else:
+                    for exam in exams:
+                        if exam.id_sal != salle[0][0]:
+                            return "Vous avez une évaluation mais n'êtes pas dans cette salle. Votre évaluation est dans la salle " + str(exam.id_sal)
+                    return "Rentrez"
+
+                  
     
   

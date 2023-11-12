@@ -22,6 +22,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 from sqlalchemy.orm import sessionmaker, relationship, Session
+from models.anne import Annees,Departement,Formation,PV,DepartementSuperviseurs,Niveau,Historiques,Annedep,SurveillanceSuperviseur,Filiere,Matiere,Etudiant,Salle,Semestre,Evaluation,Superviseur,Surveillant,User
 
 from auth.authConfig import create_user,UserResponse,UserCreate,recupere_user,get_current_user,get_db,authenticate_user,create_access_token,ACCESS_TOKEN_EXPIRE_MINUTES,check_Adminpermissions,check_superviseurpermissions,check_survpermissions,User
 from auth.authConfig import get_current_user,read_users_nom,superviseur_id,hash_password
@@ -39,6 +40,7 @@ from routes.surveillance import surveillance_router
 from routes.jour import jour_router
 from routes.creneau import creneau_router
 from routes.creneau_jour import creneaujour_router
+from routes.historique import write_data_case_etudiant
 app=FastAPI()
 Session = sessionmaker(bind=create_engine("mysql+pymysql://root@localhost:3306/db_mobile3"))
 # Create a session
@@ -472,5 +474,48 @@ async def get_pvs_by_id(id:int):
 async def get_pvs_user(user_id: int = Depends(recupere_userid), user: User = Depends(check_survpermissions), db: Session = Depends(get_db)):
     pvs = db.query(PV).filter_by(surveillant_id=user_id).all()
     return pvs
+@app.get('/informations/{image1}/{id_etu}/{id}')
+async def getInformations(image1: str,id_etu:int,id:int):
+             engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
+             Session = sessionmaker(bind=engine)
+             session = Session()
+  #temps actuel
+             now = datetime.now()
+            #  print("user",user_id)
+             #filere de l'etudiant 
+             fil=session.query(Etudiant.id_fil).filter(Etudiant.id == id_etu).all()
+             print("etudiant",fil[0][0])
+             #recuperation des matires de filiere de l'etudiant
+             subquery = session.query(Matiere.id).filter(Matiere.id_fil == fil[0][0])
+             print("matiere",subquery[0][0])
+             #recuperation de salle de surveillance de cette utilisateur a ce moment
+            #  salle=session.query(SurveillanceSuperviseur.id_sal).filter(and_(now >= Surveillance.date_debut, now <= Surveillance.date_fin, Surveillance.id_surv==user_id)).all()
+             salle=session.query(Surveillant.id_sal).filter(Surveillant.user_id==id).all()
+             print("sal",salle[0][0])
+             exams = session.query(Evaluation.id,Evaluation.id_sal).filter(and_(now >= Evaluation.date_debut, now <= Evaluation.date_fin,Evaluation.id_mat.in_(subquery))).all()
+             
+             #timestamp = datetime.now().timestamp()
+
+             if not exams:
+            #            timestamp = datetime.now().timestamp()
+            #            notification_filename = f"{timestamp}.jpg"
+            #            notification_folder = "C:/Users/pc/StudioProjects/pfe/PFE_FRONT/images/notifications"
+            #            notification_path = os.path.join(notification_folder, notification_filename)
+            #            os.rename(image1, notification_path)
+
+            # # Nouveau chemin de l'image
+            #            image_etu_path = notification_path.replace("\\", "/")        
+           
+              
+                       #return "pas d'examen a ce moment"
+                       return await write_data_case_etudiant(image1,id_etu,salle[0][0])
+             else : 
+                 if(exams[0][1]==salle[0][0]) :
+                   return "Rentrez"
+                 else :
+                     print(exams[0][1])
+                     return "Vous avez une évaluation mais n'êtes pas dans cette salle. Votre évaluation est dans la salle " + str(exams[0][1])
+    
+  
 if __name__ == "__main__":
-    uvicorn.run(app, port=8000, host='192.168.245.113')
+    uvicorn.run(app, port=8000, host='192.168.16.113')

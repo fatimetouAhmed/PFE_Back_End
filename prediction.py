@@ -47,7 +47,7 @@ async def predict_face(image_path,user_id: int = Depends(recupere_userid),user: 
                     print("url:", url)
                     print("id:",user_id)
                     id = get_etudiant(url)
-                    print(id)
+                    # print(id)
                     donne = await get_infoexamun(image_path,image_name, id, user_id, user)
                     return donne
                 else:

@@ -66,29 +66,39 @@ async def read_data(nom:str,):
         id=surveillance.user_id  
     return id
 
-@surveillance_router.get("/surveillances/evaluations/nom")
-async def read_data():
+@surveillance_router.get("/surveillances/evaluations/nom/{level_name}")
+async def read_data(level_name:str):
     # Créer une session
     Session = sessionmaker(bind=con)
     session = Session()
-
-    query = session.query(Evaluation.type).all()
+    level = session.query(Filiere).filter(Filiere.libelle == level_name).first()
+        # dep = session.query(Departement).filter(Departement.nom_departement == dep_name).first()
+    if (level):
+      query = session.query(Evaluation.type,Matiere.libelle).\
+                            join(Matiere, Matiere.id == Evaluation.id_mat).\
+                join(Filiere, Filiere.id == Matiere.id_fil). \
+                filter(Filiere.id == level.id).all()
     results = []
     for row in query:
         result = {
-            "type": row[0],
+            "type": row.type+' '+row.libelle,
         }  # Créez un dictionnaire avec la clé "nom" et la valeur correspondante
         results.append(result)
 
     return results
 
 @surveillance_router.get("/surveillances/evaluations/{nom}")
-async def read_data(nom:str,):
+async def read_data(nom:str):
     # Créer une session
     Session = sessionmaker(bind=con)
     session = Session()
-
-    query = session.query(Evaluation.id).filter(Evaluation.type==nom).all()
+    chaine=nom.split(' ')
+    # level = session.query(Filiere).filter(Filiere.libelle == level_name).first()
+    #     # dep = session.query(Departement).filter(Departement.nom_departement == dep_name).first()
+    # if (level):
+    query = session.query(Evaluation.id).\
+        join(Matiere, Matiere.id == Evaluation.id_mat).\
+    filter(and_(Evaluation.type==chaine[0],Matiere.libelle==chaine[1])).all()
     id=0
     for surveillance in query:
         id=surveillance.id  
