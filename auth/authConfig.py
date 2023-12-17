@@ -44,6 +44,7 @@ class User(Base):
     pswd = Column(String(255))
     role = Column(String(255))
     photo = Column(String(250))
+    telephone = Column(Integer)
 
     surveillant = relationship("Surveillant", back_populates="user", uselist=False)
     administrateur = relationship("Administrateur", back_populates="user", uselist=False)
@@ -147,6 +148,7 @@ class UserCreate(BaseModel):
     pswd: str
     role: str
     photo:str
+    telephone:int
     id_sal:int
 
 class UserResponse(BaseModel):
@@ -156,6 +158,7 @@ class UserResponse(BaseModel):
     email: str
     role: str
     photo:str
+    telephone:int
 
 # Fonction pour hacher le mot de passe
 def hash_password(password: str) -> str:
@@ -171,6 +174,7 @@ async def create_user(
     pswd: str = Form(...),
     role: str = Form(...),
     id_sal: int = Form(...),
+    telephone:int = Form(...),
     file: UploadFile = File(...), db: Session = Depends(get_db)):
     
     try:
@@ -198,7 +202,7 @@ async def create_user(
         # date_N = datetime.strptime('2023-09-01T22:56:45.274Z', '%Y-%m-%dT%H:%M:%S.%fZ')
         # date_insecription = datetime.strptime('2023-09-01T22:56:45.274Z', '%Y-%m-%dT%H:%M:%S.%fZ')
         hashed_password = hash_password('ghhg')
-        db_user = User(nom=nom, prenom=prenom, email=email, pswd=hashed_password, role=role ,photo=file_path_str)
+        db_user = User(nom=nom, prenom=prenom, email=email, pswd=hashed_password, role=role ,photo=file_path_str,telephone=telephone)
         db.add(db_user)
         db.commit()
         db.refresh(db_user)
@@ -220,7 +224,7 @@ async def create_user(
             db.commit()
             db.refresh(superviseur)
 
-        return UserResponse(id=db_user.id, nom=db_user.nom, prenom=db_user.prenom, email=db_user.email, role=db_user.role,photo=db_user.photo)
+        return UserResponse(id=db_user.id, nom=db_user.nom, prenom=db_user.prenom, email=db_user.email, role=db_user.role,photo=db_user.photo,telephone=telephone)
     except Exception as e:
         return {"error": str(e)}
 
@@ -362,7 +366,8 @@ def recupere_user(user: User= Depends(get_current_user)):
         "prenom": user.prenom,
         "email": user.email,
         "role": user.role,
-        "photo": user.photo
+        "photo": user.photo,
+        "telephone": user.telephone
 
                  }
       return user_data
@@ -373,7 +378,8 @@ def recupere_userid(user: User = Depends(get_current_user)):
         "prenom": user.prenom,
         "email": user.email,
         "role": user.role,
-        "photo": user.photo
+        "photo": user.photo,
+        "telephone": user.telephone
 
     }
     user_id = user_data["id"]
@@ -409,6 +415,7 @@ async def read_data_users_by_id(id:int):
             "email": row.email,
             "role": row.role,
             "photo": nom_fichier,
+            "telephone": row.telephone
         }
         results.append(result)
     return results
@@ -448,6 +455,7 @@ async def update_data(
     pswd: str = Form(...),
     role: str = Form(...),
     id_sal: int = Form(...),
+    telephone: int = Form(...),
     file: UploadFile = File(...),):
     Session = sessionmaker(bind=con)
     session = Session()
@@ -474,7 +482,8 @@ async def update_data(
         email=email,
         pswd=pswd,
         role=role,
-        photo=str(file_path_str)
+        photo=str(file_path_str),
+        telephone=telephone
            )
 
         # Execute the update statement

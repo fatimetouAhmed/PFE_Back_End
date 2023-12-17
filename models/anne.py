@@ -18,7 +18,7 @@ class User(Base):
     pswd = Column(String(255))
     role = Column(String(255))
     photo = Column(String(250))
-
+    telephone = Column(Integer)
     surveillant = relationship("Surveillant", back_populates="user", uselist=False)
     administrateur = relationship("Administrateur", back_populates="user", uselist=False)
     superviseur = relationship("Superviseur", back_populates="user", uselist=False)
@@ -119,9 +119,8 @@ class Etudiant(Base):
     tel = Column(String(250))
     email = Column(String(250))
     id_fil = Column(Integer, ForeignKey("filiere.id"))
-    filiere = relationship("Filiere", back_populates="etudiant", uselist=False)
-    
-
+    filiere = relationship("Filiere", back_populates="etudiant", uselist=False)   
+    pv = relationship("PV", back_populates="etudiant", uselist=False) 
    # matieres = relationship('Matiere', secondary=etudiermats, backref='etudiants')
 
 
@@ -209,10 +208,11 @@ class PV(Base):
     type = Column(String(255), nullable=True)
     date_pv = Column(DateTime, default=datetime.now)  # Ajout du champ type
     etat = Column(String(50), nullable=True)
-    id_eval = Column(Integer, ForeignKey("evaluation.id"))
+    id_eval = Column(Integer, ForeignKey("evaluation.id"))    
+    id_etud = Column(Integer, ForeignKey("etudiants.id"))
     surveillant = relationship("Surveillant", back_populates="pv")
     evaluation = relationship("Evaluation", back_populates="pv")
-
+    etudiant = relationship("Etudiant", back_populates="pv")
 
 class Salle(Base):
     __tablename__ = 'salles'

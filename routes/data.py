@@ -140,7 +140,7 @@ async def get_salles(id_user:int,id: int):
     Session = sessionmaker(bind=engine)
     session = Session()
     salle_alias_1 = aliased(Salle) 
-    data = session.query( Etudiant.id,Etudiant.nom,Etudiant.prenom,Etudiant.photo,Etudiant.matricule,Etudiant.genre,Etudiant.date_n,Etudiant.date_inscription,Etudiant.lieu_n,Etudiant.email,Etudiant.tel,Etudiant.nationnalite,Etudiant.id_fil,Filiere.libelle.label('filiere_libelle')).\
+    data = session.query( Etudiant.id,Etudiant.nom,Etudiant.prenom,Etudiant.photo,Etudiant.matricule,Etudiant.genre,Etudiant.date_n,Etudiant.date_inscription,Etudiant.lieu_n,Etudiant.email,Etudiant.tel,Etudiant.nationnalite,Etudiant.id_fil,Filiere.abreviation.label('filiere_libelle')).\
         join(Filiere,Filiere.id == Etudiant.id_fil).\
         join(Matiere,Matiere.id_fil == Filiere.id).\
         join(Evaluation,Evaluation.id_mat == Matiere.id).\

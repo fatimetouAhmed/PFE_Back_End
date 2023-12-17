@@ -81,6 +81,7 @@ async def create_user(
     pswd: str = Form(...),
     role: str = Form(...),
     id_sal: int = Form(...),
+    telephone: int = Form(...),
     file: UploadFile = File(...)):
     engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
     Session = sessionmaker(bind=engine)
@@ -110,7 +111,7 @@ async def create_user(
         # date_N = datetime.strptime('2023-09-01T22:56:45.274Z', '%Y-%m-%dT%H:%M:%S.%fZ')
         # date_insecription = datetime.strptime('2023-09-01T22:56:45.274Z', '%Y-%m-%dT%H:%M:%S.%fZ')
         hashed_password = hash_password('ghhg')
-        db_user = User(nom=nom, prenom=prenom, email=email, pswd=hashed_password, role=role ,photo=file_path_str)
+        db_user = User(nom=nom, prenom=prenom, email=email, pswd=hashed_password, role=role ,photo=file_path_str,telephone=telephone)
         session.add(db_user)
         session.commit()
         session.refresh(db_user)
@@ -135,7 +136,7 @@ async def create_user(
             session.commit()
             session.refresh(superviseur)
 
-        return UserResponse(id=db_user.id, nom=db_user.nom, prenom=db_user.prenom, email=db_user.email, role=db_user.role,photo=db_user.photo)
+        return UserResponse(id=db_user.id, nom=db_user.nom, prenom=db_user.prenom, email=db_user.email, role=db_user.role,photo=db_user.photo,telephone=db_user.telephone)
     except Exception as e:
         return {"error": str(e)}
 
@@ -148,6 +149,7 @@ async def update_user(
     pswd: str = Form(None),
     role: str = Form(None),
     id_sal: int = Form(None),
+    telephone: int = Form(None),
     file: UploadFile = File(None),
 ):
     engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
@@ -195,6 +197,8 @@ async def update_user(
             db_user.pswd = hash_password(pswd)
         if role:
             db_user.role = role
+        if telephone:
+            db_user.telephone = telephone
         if id_sal:
             db_user.id_sal = id_sal
 
@@ -207,7 +211,8 @@ async def update_user(
             prenom=db_user.prenom,
             email=db_user.email,
             role=db_user.role,
-            photo=db_user.photo
+            photo=db_user.photo,
+            telephone=db_user.telephone
         )
     except Exception as e:
         # Gérez les erreurs en conséquence
@@ -333,15 +338,15 @@ def get_surveillant_info(user: User = Depends(check_survpermissions)):
 
 @app.post('/api/predict')
 async def predict_image(file: UploadFile = File(...), user_id: int = Depends(recupere_userid), user: User = Depends(check_survpermissions)):
-    try:
+    # try:
         image = await file.read()
         with open("image.jpg", "wb") as f:
             f.write(image)
            # print("image.jpg")
         result = await predict_face("image.jpg", user_id, user)
         return result
-    except Exception as e:
-        return {"error": str(e)}
+    # except Exception as e:
+    #     return {"error": str(e)}
 @app.get("/current_user_id")
 def get_current_user_route(user: User = Depends(get_current_user)):
 
@@ -380,12 +385,14 @@ def get_current_user_route(user: User = Depends(get_current_user)):
     user_photo = user_data["photo"]
     return user_photo
 @app.post('/api/pv')
-async def pv(file: UploadFile = File(...),nom:str=Form(...),type:str=Form(...),id_surv:int=Form(...),description: str = Form(...), nni: str= Form(...),tel: int= Form(...)):
+async def pv(file: UploadFile = File(...),nom:str=Form(...),type:str=Form(...),id_surv:int=Form(...),description: str = Form(...), nni: str= Form(...),tel: int= Form(...),matricule:str=Form(...)):
     # surveillant = db.query(Surveillant).filter_by(user_id=current_user['id']).first()
         engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
         Session = sessionmaker(bind=engine)
         session = Session()
-        now = datetime.now()  
+        now = datetime.now()
+        id_etud= session.query(Etudiant.id).filter(Etudiant.matricule==matricule)
+        print(id_etud[0][0])
         id_eval=session.query(Evaluation.id).join(Surveillant,Surveillant.id_sal==Evaluation.id_sal).filter(and_(Surveillant.user_id==id_surv,now >= Evaluation.date_debut, now <= Evaluation.date_fin)).all()
     # try:
         image = await file.read()      
@@ -404,7 +411,7 @@ async def pv(file: UploadFile = File(...),nom:str=Form(...),type:str=Form(...),i
         # Enregistrez l'image dans le dossier spécifié
         with open(file_path, "wb") as f:
             f.write(image)
-        pv_record = PV(nom=nom,photo=file_path, description=description, nni=nni, tel=tel,type=type, surveillant_id=id_surv, date_pv=datetime.now(),etat='initial',id_eval=id_eval[0][0])
+        pv_record = PV(nom=nom,photo=file_path, description=description, nni=nni, tel=tel,type=type, surveillant_id=id_surv, date_pv=datetime.now(),etat='initial',id_eval=id_eval[0][0],id_etud=id_etud[0][0])
         # Utilisez le chemin du fichier comme URL de la photo
         session.add(pv_record)
         session.commit()
@@ -474,6 +481,7 @@ async def get_pvs_by_id(id:int):
 async def get_pvs_user(user_id: int = Depends(recupere_userid), user: User = Depends(check_survpermissions), db: Session = Depends(get_db)):
     pvs = db.query(PV).filter_by(surveillant_id=user_id).all()
     return pvs
+
 @app.get('/informations/{image1}/{id_etu}/{id}')
 async def getInformations(image1: str,id_etu:int,id:int):
              engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
@@ -518,4 +526,4 @@ async def getInformations(image1: str,id_etu:int,id:int):
     
   
 if __name__ == "__main__":
-    uvicorn.run(app, port=8000, host='192.168.16.113')
+    uvicorn.run(app, port=8000, host='192.168.255.113')

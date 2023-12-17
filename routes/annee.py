@@ -267,6 +267,48 @@ def get_data_etudiants_for_level(level_name:str,id:int):
 
     finally:
         session.close()
+@annee_router.get("/etudiants/{id}")
+def get_data_etudiants_for_level(level_name:str,id:int):
+    try:
+        Session = sessionmaker(bind=create_engine("mysql+pymysql://root@localhost:3306/db_mobile3").connect())
+        session = Session()
+        level = session.query(Filiere).filter(Filiere.libelle == level_name).first()
+
+        if level:
+            data = session.query(Etudiant.id,Etudiant.nom,Etudiant.prenom,Etudiant.photo,Etudiant.matricule,Etudiant.genre,Etudiant.date_n,Etudiant.date_inscription,Etudiant.lieu_n,Etudiant.email,Etudiant.tel,Etudiant.nationnalite,Etudiant.id_fil,Filiere.abreviation). \
+                join(Filiere, Filiere.id == Etudiant.id_fil). \
+                filter(Etudiant.id==id).all()
+
+            results = []
+            for row in data:
+                nom_fichier = os.path.basename(row.photo)
+                result = {
+                    "id": row.id,
+                        "nom": row.nom,
+                        "prenom": row.prenom,
+                        "photo": nom_fichier,
+                        "matricule": row.matricule,
+                        "genre": row.genre,
+                        "date_N": row.date_n,
+                        "lieu_n": row.lieu_n,
+                        "email": row.email,
+                        "telephone": row.tel,
+                        "nationalite": row.nationnalite,
+                        "date_insecription": row.date_inscription,
+                        "id_fil":row.id_fil,
+                         "filiere":row.abreviation
+                }
+                results.append(result)
+            
+            return results
+    #     else:
+    #         return {"message": "Niveau non trouvé."}
+
+    # except Exception as e:
+    #     return {"message": str(e)}
+
+    finally:
+        session.close()
 @annee_router.get("/matieres/{level_name}")
 def get_data_matieres_for_level(level_name:str):
     Session = sessionmaker(bind=create_engine("mysql+pymysql://root@localhost:3306/db_mobile3").connect())

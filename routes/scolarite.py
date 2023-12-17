@@ -12,8 +12,8 @@ from sqlalchemy import func
 from schemas.examun import Evaluations
 from models.anne import Annees,Departement,Formation,PV,DepartementSuperviseurs,Niveau,Historiques,Annedep,SurveillanceSuperviseur,Filiere,Jour,Matiere,Etudiant,Salle,Semestre,Evaluation,Superviseur,Surveillant,User
 scolarite_router=APIRouter()      
-@scolarite_router.get("/evaluations/{level_name}")
-def get_data_evaluations_for_level(level_name:str):
+@scolarite_router.get("/evaluations/{level_name}/{type}")
+def get_data_evaluations_for_level(level_name:str,type:str):
     engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
     Session = sessionmaker(bind=engine)
     session = Session()
@@ -26,7 +26,7 @@ def get_data_evaluations_for_level(level_name:str):
                 join(Jour, Jour.id == Evaluation.id_jour).\
                 join(Salle, Salle.id == Evaluation.id_sal).\
                 join(Filiere, Filiere.id == Matiere.id_fil). \
-                filter(Filiere.id == level.id).all()
+                filter(Filiere.id == level.id).filter(Evaluation.type==type)
             results = []
             for row in data:
                 result = {
@@ -165,7 +165,7 @@ async def read_data_users():
     engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
     Session = sessionmaker(bind=engine)
     session = Session()
-    result_proxy = session.query(User.id,User.nom,User.prenom,User.photo,User.email,User.role).filter(User.role=='superviseur').all()
+    result_proxy = session.query(User.id,User.nom,User.prenom,User.photo,User.email,User.role,User.telephone).filter(User.role=='superviseur').all()
     results = []
     for row in result_proxy:
         nom_fichier = os.path.basename(row.photo)
@@ -176,6 +176,7 @@ async def read_data_users():
             "email": row.email,
             "role": row.role,
             "photo": nom_fichier,
+            "telephone": row.telephone,
         }
         results.append(result)
     return results    
@@ -185,7 +186,7 @@ async def read_data_users():
     engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
     Session = sessionmaker(bind=engine)
     session = Session()
-    result_proxy = session.query(User.id, User.nom, User.prenom, User.photo, User.email, User.role, Surveillant.typecompte, Salle.nom.label('salle')).\
+    result_proxy = session.query(User.id, User.nom, User.prenom, User.photo, User.email, User.role, User.telephone,Surveillant.typecompte, Salle.nom.label('salle')).\
         join(Surveillant, User.id == Surveillant.user_id).\
         join(Salle, Surveillant.id_sal == Salle.id).\
         filter(User.role == 'surveillant').all()
@@ -202,6 +203,7 @@ async def read_data_users():
             "photo": nom_fichier,
             "typecompte": row.typecompte,
             "salle": row.salle,
+            "telephone": row.telephone,
         }
         results.append(result)
     return results
@@ -312,8 +314,8 @@ async def matiere_id(nom:str):
         id=matiere.id   
     return id
 
-@scolarite_router.get("/Surveillances/{level_name}")
-def get_data_for_level(level_name:str):
+@scolarite_router.get("/Surveillances/{level_name}/{type}")
+def get_data_for_level(level_name:str,type:str):
     engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
     Session = sessionmaker(bind=engine)
     session = Session()
@@ -321,14 +323,14 @@ def get_data_for_level(level_name:str):
     try:
         level = session.query(Filiere).filter(Filiere.libelle == level_name).first()
         if level:
-            data = session.query(SurveillanceSuperviseur.id, SurveillanceSuperviseur.id_sup, SurveillanceSuperviseur.id_sal, SurveillanceSuperviseur.id_eval, User.prenom, User.nom,  Evaluation.type). \
+            data = session.query(SurveillanceSuperviseur.id, SurveillanceSuperviseur.id_sup, SurveillanceSuperviseur.id_sal, SurveillanceSuperviseur.id_eval, User.prenom, User.nom,  Matiere.libelle). \
                 join(Salle, Salle.id.in_(func.SUBSTRING_INDEX(SurveillanceSuperviseur.id_sal, ';', -1))). \
                 join(Evaluation, SurveillanceSuperviseur.id_eval == Evaluation.id). \
                 join(Matiere, Evaluation.id_mat == Matiere.id). \
                 join(Superviseur, Superviseur.user_id == SurveillanceSuperviseur.id_sup). \
                 join(User, Superviseur.user_id == User.id). \
                 join(Filiere, Filiere.id == Matiere.id_fil). \
-                filter(Filiere.id == level.id, SurveillanceSuperviseur.id_sal != None).all()
+                filter(Filiere.id == level.id, SurveillanceSuperviseur.id_sal != None,Evaluation.type==type).group_by(SurveillanceSuperviseur.id)
 
             json_data = []
             
@@ -342,7 +344,7 @@ def get_data_for_level(level_name:str):
                     'id_sal': row1.id_sal,
                     'id_eval': row1.id_eval,
                     'superviseur': row1.prenom, 
-                    'evaluation':row1.type,
+                    'evaluation':row1.libelle,
                      'salle': salle_noms 
                 })
 

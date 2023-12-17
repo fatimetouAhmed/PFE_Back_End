@@ -53,7 +53,7 @@ async def read_data(id:int):
         join(salle_alias_2, salle_alias_2.id == Surveillant.id_sal). \
         join(SurveillanceSuperviseur, SurveillanceSuperviseur.id_eval == Evaluation.id). \
         join(Superviseur, Superviseur.user_id == SurveillanceSuperviseur.id_sup). \
-        filter(Superviseur.user_id == id)
+        filter(Superviseur.user_id == id).group_by(Notifications.date)
 
     r3 = q3.all()
     results = []
@@ -67,35 +67,54 @@ async def read_data(id:int):
         }
         results.append(result) 
     return results
+
 @notification_router.get("/notifications/{level_name}")
-def read_data_admin(level_name:str):
+def read_data_admin(level_name: str):
     engine = create_engine("mysql+pymysql://root@localhost:3306/db_mobile3")
     Session = sessionmaker(bind=engine)
     session = Session()
+    
     try:
-        level = session.query(Filiere).filter(Filiere.libelle == level_name).first()
-        if (level ):
-            data = session.query(Notifications.id,Notifications.content,Notifications.date,Notifications.is_read,Notifications.image). \
-                join(Evaluation, Notifications.id_exam == Evaluation.id).\
-                join(Matiere, Matiere.id == Evaluation.id_mat).\
-                join(Salle, Salle.id == Evaluation.id_sal).\
-                join(Filiere, Filiere.id == Matiere.id_fil). \
-                filter(Filiere.id == level.id).all()
-            
+        if level_name == ' ':
+            data = session.query(Notifications.id, Notifications.content, Notifications.date, Notifications.is_read, Notifications.image).all()
             results = []
             for row in data:
                 nom_fichier = os.path.basename(row[4])
-      
+
                 result = {
+                    "id": row[0],
+                    "content": row[1],
+                    "date": row[2],
+                    "is_read": row[3],
+                    "image": nom_fichier,
+                }
+                results.append(result)
+
+            return results
+        else:
+            level = session.query(Filiere).filter(Filiere.libelle == level_name).first()
+            if level:
+                data = session.query(Notifications.id, Notifications.content, Notifications.date, Notifications.is_read, Notifications.image). \
+                    join(Evaluation, Notifications.id_exam == Evaluation.id).\
+                    join(Matiere, Matiere.id == Evaluation.id_mat).\
+                    join(Salle, Salle.id == Evaluation.id_sal).\
+                    join(Filiere, Filiere.id == Matiere.id_fil). \
+                    filter(Filiere.id == level.id).all()
+
+                results = []
+                for row in data:
+                    nom_fichier = os.path.basename(row[4])
+
+                    result = {
                         "id": row[0],
                         "content": row[1],
                         "date": row[2],
                         "is_read": row[3],
                         "image": nom_fichier,
-                        }  # Créez un dictionnaire avec la clé "nom" et la valeur correspondante
-                results.append(result)
-            
-            return results
+                    }
+                    results.append(result)
+
+                return results
     finally:
         session.close()
         
@@ -104,4 +123,4 @@ async def update_data(id:int):
     con.execute(Notifications.__table__.update().values(
         is_read=True
     ).where(Notifications.__table__.c.id==id))
-    return await read_data()
+    return "succes"
